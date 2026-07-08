@@ -22,14 +22,11 @@ html,body{height:100%}
 body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;overflow:hidden}
 .app{display:flex;flex-direction:column;height:100dvh}
 .mono{font-family:'JetBrains Mono',monospace}
-.statusbar{display:flex;justify-content:space-between;align-items:center;height:38px;padding:0 24px;font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.08em;color:var(--dim);flex:none}
-.statusbar .r{display:flex;gap:12px}
 .head{display:flex;align-items:center;justify-content:space-between;padding:10px 24px 0;flex:none}
 .brand{display:flex;align-items:center;gap:9px}
 .brand img{width:22px;height:22px;border-radius:6px;border:1px solid var(--ln)}
 .brand span{font-weight:700;font-size:12px;letter-spacing:.24em}
 .head-r{display:flex;align-items:center;gap:14px}
-.head-r .core{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.14em;color:var(--mut)}
 .icon-btn{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border:1px solid var(--ln);border-radius:var(--rad);font-size:13px;color:var(--dim);background:none;cursor:pointer}
 .view{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .view::-webkit-scrollbar{display:none}
@@ -77,10 +74,9 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
 </head>
 <body>
 <div class="app">
-  <div class="statusbar"><span id="clock">09:41</span><div class="r"><span>VPN</span><span id="conn-badge">○</span></div></div>
   <div class="head">
     <div class="brand"><img src="logo.png" alt=""><span>MISETANIBOX</span></div>
-    <div class="head-r"><span class="core">MIHOMO</span><button class="icon-btn" onclick="toggleTheme()">◐</button></div>
+    <div class="head-r"><button class="icon-btn" onclick="toggleTheme()">◐</button></div>
   </div>
 
   <!-- ГЛАВНАЯ -->
@@ -129,7 +125,7 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
     <div class="row"><div class="grow"><div class="t">Режим TUN</div><div class="s">ПОЛНЫЙ ПЕРЕХВАТ ТРАФИКА</div></div><button class="toggle on" onclick="this.classList.toggle('on')"></button></div>
     <div class="row"><div class="grow"><div class="t">Автозапуск</div><div class="s">ПРИ ВКЛЮЧЕНИИ УСТРОЙСТВА</div></div><button class="toggle" onclick="this.classList.toggle('on')"></button></div>
     <div class="row"><div class="grow"><div class="t">Тема</div><div class="s">ТЁМНАЯ / СВЕТЛАЯ</div></div><span class="chev" onclick="toggleTheme()">◐</span></div>
-    <div class="row"><div class="grow"><div class="t">О приложении</div><div class="s">MIHOMO · CLASH META CORE</div></div><span class="chev">›</span></div>
+    <div class="row"><div class="grow"><div class="t">О приложении</div><div class="s">ВЕРСИЯ · ЛИЦЕНЗИЯ · АВТОРЫ</div></div><span class="chev">›</span></div>
   </div>
 
   <nav class="nav">
@@ -170,9 +166,8 @@ function toggleConnect(){
   connected=!connected;
   const big=document.getElementById('connect-big');
   const sv=document.getElementById('status-val');
-  const badge=document.getElementById('conn-badge');
   if(connected){
-    big.innerHTML='ОТКЛЮ-<br>ЧИТЬСЯ'; sv.textContent='● ПОДКЛЮЧЕНО'; sv.style.color='var(--ok)'; badge.textContent='●';
+    big.innerHTML='ОТКЛЮ-<br>ЧИТЬСЯ'; sv.textContent='● ПОДКЛЮЧЕНО'; sv.style.color='var(--ok)';
     sessStart=Date.now();
     sessTimer=setInterval(()=>{
       const s=Math.floor((Date.now()-sessStart)/1000);
@@ -180,7 +175,7 @@ function toggleConnect(){
     },1000);
     // TODO(phase2): вызов нативного VpnService-плагина Capacitor
   }else{
-    big.innerHTML='ПОДКЛЮ-<br>ЧИТЬСЯ'; sv.textContent='○ ОТКЛЮЧЕНО'; sv.style.color=''; badge.textContent='○';
+    big.innerHTML='ПОДКЛЮ-<br>ЧИТЬСЯ'; sv.textContent='○ ОТКЛЮЧЕНО'; sv.style.color='';
     clearInterval(sessTimer); document.getElementById('sess-time').textContent='00:00';
   }
 }
@@ -188,7 +183,6 @@ function toggleTheme(){
   const r=document.documentElement;
   r.setAttribute('data-theme', r.getAttribute('data-theme')==='light'?'':'light');
 }
-setInterval(()=>{const d=new Date();document.getElementById('clock').textContent=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')},1000);
 </script>
 </body>
 </html>
