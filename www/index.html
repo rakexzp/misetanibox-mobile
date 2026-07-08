@@ -113,9 +113,9 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
   <!-- ПОДПИСКИ -->
   <div class="view hidden" id="view-subs">
     <div class="sec-title">Подписки</div>
-    <div class="sec-sub">1 АКТИВНА</div>
-    <div class="row"><div class="grow"><div class="t">Моя подписка</div><div class="s">1.2 ГБ / 100 ГБ · ДО 30.12</div></div><span class="chev">›</span></div>
-    <div class="row" style="color:var(--dim)"><div class="grow"><div class="t">+ Добавить подписку</div><div class="s">ССЫЛКА ИЛИ DNS</div></div></div>
+    <div class="sec-sub">MIHOMO / CLASH</div>
+    <div class="row" id="subs-active" style="display:none" onclick="addSubscription()"><span class="flag" style="background:var(--ok)"></span><div class="grow"><div class="t">Моя подписка</div><div class="s">АКТИВНА · НАЖМИ ДЛЯ СМЕНЫ</div></div><span class="chev">›</span></div>
+    <div class="row" style="color:var(--dim)" onclick="addSubscription()"><div class="grow"><div class="t">+ Добавить подписку</div><div class="s">ССЫЛКА НА КОНФИГ</div></div></div>
   </div>
 
   <!-- НАСТРОЙКИ -->
@@ -161,28 +161,79 @@ function go(t){
   for(const b of document.querySelectorAll('.nav button')) b.classList.toggle('active', b.dataset.tab===t);
 }
 
+// --- Capacitor: нативный VPN-плагин ---
+const Cap = window.Capacitor;
+const isNative = !!(Cap && Cap.isNativePlatform && Cap.isNativePlatform());
+const Vpn = (Cap && Cap.registerPlugin) ? Cap.registerPlugin('Vpn') : null;
+
+// стабильный HWID устройства
+function getHwid(){
+  let h = localStorage.getItem('mise_hwid');
+  if(!h){ h = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())+Math.random()); localStorage.setItem('mise_hwid', h); }
+  return h;
+}
+function getSubUrl(){ return localStorage.getItem('mise_subUrl') || ''; }
+
 let connected=false, sessStart=0, sessTimer=null;
-function toggleConnect(){
-  connected=!connected;
+function setUiConnected(on){
+  connected=on;
   const big=document.getElementById('connect-big');
   const sv=document.getElementById('status-val');
-  if(connected){
+  if(on){
     big.innerHTML='ОТКЛЮ-<br>ЧИТЬСЯ'; sv.textContent='● ПОДКЛЮЧЕНО'; sv.style.color='var(--ok)';
-    sessStart=Date.now();
-    sessTimer=setInterval(()=>{
+    if(!sessTimer){ sessStart=Date.now(); sessTimer=setInterval(()=>{
       const s=Math.floor((Date.now()-sessStart)/1000);
       document.getElementById('sess-time').textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
-    },1000);
-    // TODO(phase2): вызов нативного VpnService-плагина Capacitor
+    },1000); }
   }else{
     big.innerHTML='ПОДКЛЮ-<br>ЧИТЬСЯ'; sv.textContent='○ ОТКЛЮЧЕНО'; sv.style.color='';
-    clearInterval(sessTimer); document.getElementById('sess-time').textContent='00:00';
+    clearInterval(sessTimer); sessTimer=null; document.getElementById('sess-time').textContent='00:00';
   }
 }
+function setStatusText(t){ const sv=document.getElementById('status-val'); if(sv) sv.textContent=t; }
+
+async function toggleConnect(){
+  if(!isNative || !Vpn){ setUiConnected(!connected); return; } // веб-превью — просто демо
+  if(connected){
+    setStatusText('○ ОТКЛЮЧЕНИЕ…');
+    try{ await Vpn.stop(); }catch(e){}
+    return;
+  }
+  const sub=getSubUrl();
+  if(!sub){ alert('Сначала добавьте подписку (вкладка «Подписки»).'); go('subs'); return; }
+  setStatusText('◌ ПОДКЛЮЧЕНИЕ…');
+  try{
+    await Vpn.start({ subUrl: sub, hwid: getHwid() });
+  }catch(e){
+    setStatusText('○ ОТКЛЮЧЕНО');
+    alert('Не удалось подключиться: '+(e && e.message ? e.message : e));
+  }
+}
+
+// события состояния от нативного сервиса
+if(Vpn && Vpn.addListener){
+  Vpn.addListener('vpnState', (s)=>{
+    if(s.state==='connected') setUiConnected(true);
+    else if(s.state==='disconnected') setUiConnected(false);
+    else if(s.state==='error'){ setUiConnected(false); alert('VPN: '+(s.message||'ошибка')); }
+  });
+}
+
+function addSubscription(){
+  const url=prompt('Ссылка на подписку (mihomo/clash YAML):', getSubUrl());
+  if(url && url.trim()){ localStorage.setItem('mise_subUrl', url.trim()); renderSubs(); }
+}
+function renderSubs(){
+  const has=getSubUrl();
+  const el=document.getElementById('subs-active');
+  if(el) el.style.display = has ? 'flex' : 'none';
+}
+
 function toggleTheme(){
   const r=document.documentElement;
   r.setAttribute('data-theme', r.getAttribute('data-theme')==='light'?'':'light');
 }
+renderSubs();
 </script>
 </body>
 </html>
