@@ -222,6 +222,19 @@ const isNative = !!(Cap && Cap.isNativePlatform && Cap.isNativePlatform());
 const Vpn = (Cap && Cap.registerPlugin) ? Cap.registerPlugin('Vpn') : null;
 const API_BASE = 'http://127.0.0.1:9090';
 const GROUP = 'PROXY';
+function safeJson(s){ try{ return JSON.parse(s); }catch{ return null; } }
+// запрос к API ядра: через нативный плагин (без CORS/mixed-content), с фолбэком на fetch в вебе
+async function core(method, path, body){
+  try{
+    if(Vpn && Vpn.coreRequest){
+      const r = await Vpn.coreRequest({ method, path, body: body!==undefined?JSON.stringify(body):undefined });
+      return { ok: r.status>=200 && r.status<300, status: r.status, data: r.body?safeJson(r.body):null, error: r.error };
+    }
+    const r = await fetch(API_BASE+path, { method, headers: body!==undefined?{'Content-Type':'application/json'}:{}, body: body!==undefined?JSON.stringify(body):undefined });
+    return { ok: r.ok, status: r.status, data: await r.json().catch(()=>null) };
+  }catch(e){ return { ok:false, status:0, data:null, error:String(e) }; }
+}
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
 
 function getHwid(){
   let h = localStorage.getItem('mise_hwid');
@@ -243,7 +256,10 @@ function setUiConnected(on){
       document.getElementById('sess-time').textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
     },1000); }
     startTraffic();
-    setTimeout(()=>{ loadProxies(); applyModeToCore(); }, 1500); // ядру нужно скачать подписку
+    document.getElementById('servers-sub').textContent='ЗАГРУЗКА';
+    setServersNote('Ядро скачивает подписку…');
+    waitForServers();
+    setTimeout(applyModeToCore, 2500);
   }else{
     big.innerHTML='ПОДКЛЮ-<br>ЧИТЬСЯ'; sv.textContent='○ ОТКЛЮЧЕНО'; sv.style.color='';
     clearInterval(sessTimer); sessTimer=null; document.getElementById('sess-time').textContent='00:00';
@@ -287,47 +303,61 @@ function updateHomeServer(name, ping){
   pg.textContent = (ping&&ping>0) ? ping+' мс' : ''; pg.style.color=ping?pingColor(ping):'';
 }
 
+function setServersNote(txt){ document.getElementById('server-list').innerHTML='<div class="list-note">'+txt+'</div>'; }
 async function loadProxies(){
   if(!connected) return;
-  try{
-    const r=await fetch(API_BASE+'/proxies');
-    const j=await r.json();
-    const g=j.proxies&&j.proxies[GROUP];
-    if(!g||!g.all){ document.getElementById('server-list').innerHTML='<div class="list-note">Подписка ещё грузится ядром… потяните позже или нажмите «Проверить».</div>'; return; }
-    document.getElementById('servers-sub').textContent=g.all.length+' УЗЛОВ';
-    document.getElementById('server-list').innerHTML=
-      `<div class="row" onclick="pingAll()"><div class="grow"><div class="t">Проверить задержки</div><div class="s">ПИНГ ВСЕХ УЗЛОВ</div></div><span class="chev">⟳</span></div>`+
-      g.all.map(n=>{
-        const active=n===g.now, d=delays[n];
-        const ping = d===undefined?'' : (d>0?`<span class="ping" style="color:${pingColor(d)}">${d} мс</span>`:`<span class="ping" style="color:var(--bad)">—</span>`);
-        return `<div class="row" onclick="selectNode('${n.replace(/'/g,"\\'")}')">${flagImg(n,'flag')}<div class="grow"><div class="t">${cleanName(n)}</div><div class="s">${active?'● ВЫБРАН':''}</div></div>${ping}</div>`;
-      }).join('');
-    const cur=g.now; updateHomeServer(cur, delays[cur]);
-  }catch(e){
-    document.getElementById('server-list').innerHTML='<div class="list-note">API ядра недоступно. Убедитесь, что туннель подключён.</div>';
+  const r=await core('GET','/proxies');
+  if(!r.ok || !r.data){
+    document.getElementById('servers-sub').textContent='ПОДКЛЮЧЕНИЕ…';
+    setServersNote('Ядро ещё поднимается… подождите пару секунд. Если долго — проверьте подписку.');
+    return;
+  }
+  const g=r.data.proxies && r.data.proxies[GROUP];
+  if(!g || !g.all || !g.all.length){
+    document.getElementById('servers-sub').textContent='ЗАГРУЗКА';
+    setServersNote('Подписка загружается ядром. Если остаётся пусто — вероятно ссылка недоступна или не отдаёт clash/mihomo/v2ray-конфиг.');
+    return;
+  }
+  document.getElementById('servers-sub').textContent=g.all.length+' УЗЛОВ';
+  document.getElementById('server-list').innerHTML=
+    `<div class="row" onclick="pingAll()"><div class="grow"><div class="t">Проверить задержки</div><div class="s">ПИНГ ВСЕХ УЗЛОВ</div></div><span class="chev">⟳</span></div>`+
+    g.all.map(n=>{
+      const active=n===g.now, d=delays[n];
+      const ping = d===undefined?'' : (d>0?`<span class="ping" style="color:${pingColor(d)}">${d} мс</span>`:`<span class="ping" style="color:var(--bad)">—</span>`);
+      return `<div class="row" onclick="selectNode('${n.replace(/'/g,"\\'")}')">${flagImg(n,'flag')}<div class="grow"><div class="t">${cleanName(n)}</div><div class="s">${active?'● ВЫБРАН':''}</div></div>${ping}</div>`;
+    }).join('');
+  updateHomeServer(g.now, delays[g.now]);
+}
+// после коннекта ждём, пока ядро скачает подписку и поднимет API
+async function waitForServers(){
+  for(let i=0;i<20;i++){
+    if(!connected) return;
+    const r=await core('GET','/proxies');
+    if(r.ok && r.data){
+      const g=r.data.proxies && r.data.proxies[GROUP];
+      if(g && g.all && g.all.length){ loadProxies(); return; }
+      if(i===3){ core('PUT','/providers/proxies/main'); } // подтолкнуть обновление провайдера
+    }
+    loadProxies();
+    await sleep(1500);
   }
 }
 async function selectNode(name){
-  try{
-    await fetch(API_BASE+'/proxies/'+encodeURIComponent(GROUP),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
-    toast('Сервер: '+cleanName(name));
-    loadProxies();
-  }catch(e){ toast('Не удалось выбрать сервер'); }
+  const r=await core('PUT','/proxies/'+encodeURIComponent(GROUP),{name});
+  if(r.ok){ toast('Сервер: '+cleanName(name)); loadProxies(); }
+  else toast('Не удалось выбрать сервер');
 }
 async function pingAll(){
   if(!connected) return;
-  try{
-    const r=await fetch(API_BASE+'/proxies'); const j=await r.json();
-    const g=j.proxies&&j.proxies[GROUP]; if(!g||!g.all) return;
-    toast('Проверка задержек…');
-    await Promise.all(g.all.map(async n=>{
-      try{
-        const rr=await fetch(API_BASE+'/proxies/'+encodeURIComponent(n)+'/delay?timeout=3000&url='+encodeURIComponent('http://www.gstatic.com/generate_204'));
-        const jj=await rr.json(); delays[n]=(jj&&typeof jj.delay==='number')?jj.delay:-1;
-      }catch{ delays[n]=-1; }
-    }));
-    loadProxies();
-  }catch(e){ toast('Не удалось проверить'); }
+  const r=await core('GET','/proxies');
+  const g=r.data && r.data.proxies && r.data.proxies[GROUP];
+  if(!g||!g.all||!g.all.length){ toast('Нет серверов'); return; }
+  toast('Проверка задержек…');
+  await Promise.all(g.all.map(async n=>{
+    const rr=await core('GET','/proxies/'+encodeURIComponent(n)+'/delay?timeout=3000&url='+encodeURIComponent('http://www.gstatic.com/generate_204'));
+    delays[n]=(rr.data && typeof rr.data.delay==='number')?rr.data.delay:-1;
+  }));
+  loadProxies();
 }
 
 // ---------- подписка (модалка вместо prompt) ----------
@@ -355,7 +385,7 @@ function curMode(){ return localStorage.getItem('mise_mode')||'rule'; }
 function applyModeLabel(){ const m=MODES.find(x=>x.v===curMode())||MODES[0]; const el=document.getElementById('mode-lbl'); if(el) el.textContent=m.l; }
 async function applyModeToCore(){
   if(!connected) return;
-  try{ await fetch(API_BASE+'/configs',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:curMode()})}); }catch(e){}
+  await core('PATCH','/configs',{mode:curMode()});
 }
 async function cycleMode(){
   const i=MODES.findIndex(x=>x.v===curMode()); const next=MODES[(i+1)%MODES.length];
@@ -408,11 +438,11 @@ function startTraffic(){
   if(trafTimer) return;
   trafTimer=setInterval(async()=>{
     if(!connected) return;
-    try{
-      const r=await fetch(API_BASE+'/connections'); const j=await r.json();
-      totalUp=j.uploadTotal||0; totalDown=j.downloadTotal||0;
+    const r=await core('GET','/connections');
+    if(r.ok && r.data){
+      totalUp=r.data.uploadTotal||0; totalDown=r.data.downloadTotal||0;
       const el=document.getElementById('sess-data'); if(el) el.textContent=fmtBytes(totalUp+totalDown);
-    }catch(e){}
+    }
   }, 2000);
 }
 function stopTraffic(){ clearInterval(trafTimer); trafTimer=null; const el=document.getElementById('sess-data'); if(el) el.textContent='0 Б'; }

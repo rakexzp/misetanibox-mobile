@@ -93,4 +93,41 @@ class VpnPlugin : Plugin() {
         ret.put("running", MihomoVpnService.isRunning)
         call.resolve(ret)
     }
+
+    // Прокси к API ядра mihomo (external-controller) через нативный HTTP,
+    // чтобы обойти CORS/mixed-content ограничения WebView.
+    @PluginMethod
+    fun coreRequest(call: PluginCall) {
+        val method = (call.getString("method") ?: "GET").uppercase()
+        val path = call.getString("path") ?: "/"
+        val body = call.getString("body")
+        Thread {
+            try {
+                val url = java.net.URL("http://127.0.0.1:9090$path")
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = method
+                conn.connectTimeout = 5000
+                conn.readTimeout = 10000
+                if (body != null) {
+                    conn.doOutput = true
+                    conn.setRequestProperty("Content-Type", "application/json")
+                    conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+                }
+                val code = conn.responseCode
+                val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+                val text = stream?.bufferedReader()?.use { it.readText() } ?: ""
+                conn.disconnect()
+                val ret = JSObject()
+                ret.put("status", code)
+                ret.put("body", text)
+                call.resolve(ret)
+            } catch (e: Exception) {
+                val ret = JSObject()
+                ret.put("status", 0)
+                ret.put("body", "")
+                ret.put("error", e.message ?: "core unreachable")
+                call.resolve(ret)
+            }
+        }.start()
+    }
 }
