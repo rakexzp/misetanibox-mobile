@@ -86,6 +86,8 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
 .sub-btn{flex:1;padding:14px;border-radius:var(--rad);font-weight:600;font-size:14px;cursor:pointer;border:1px solid var(--ln);background:transparent;color:var(--fg)}
 .sub-btn.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
 .list-note{padding:20px 24px;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.06em;color:var(--mut);line-height:1.7}
+.dbg{margin:12px 24px 0;padding:10px 12px;border:1px solid var(--ln);border-radius:var(--rad);font-family:'JetBrains Mono',monospace;font-size:9.5px;line-height:1.5;color:var(--dim);white-space:pre-wrap;word-break:break-word;max-height:120px;overflow:auto;display:none}
+.dbg.on{display:block}
 </style>
 </head>
 <body>
@@ -105,6 +107,7 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
       <div class="big" id="connect-big">ПОДКЛЮ-<br>ЧИТЬСЯ</div>
       <div class="sub"><span>ТАП — ЗАПУСК ТУННЕЛЯ</span><span id="mode-lbl" onclick="event.stopPropagation();cycleMode()">ПРАВИЛА</span></div>
     </div>
+    <div id="dbg" class="dbg" onclick="copyDbg()"></div>
     <div class="server-blk" onclick="go('servers')">
       <div class="l">
         <img class="flag" id="home-flag" src="" alt="" style="display:none">
@@ -136,7 +139,7 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
   <!-- НАСТРОЙКИ -->
   <div class="view hidden" id="view-settings">
     <div class="sec-title">Настройки</div>
-    <div class="sec-sub">MISETANIBOX · V1.0.0</div>
+    <div class="sec-sub" id="ver-sub">MISETANIBOX</div>
     <div class="row"><div class="grow"><div class="t">Режим TUN</div><div class="s">ПОЛНЫЙ ПЕРЕХВАТ ТРАФИКА</div></div><button class="toggle on" onclick="this.classList.toggle('on')"></button></div>
     <div class="row"><div class="grow"><div class="t">Автозапуск</div><div class="s">ПРИ ВКЛЮЧЕНИИ УСТРОЙСТВА</div></div><button class="toggle" onclick="this.classList.toggle('on')"></button></div>
     <div class="row"><div class="grow"><div class="t">Тема</div><div class="s">ТЁМНАЯ / СВЕТЛАЯ</div></div><span class="chev" onclick="toggleTheme()">◐</span></div>
@@ -217,9 +220,20 @@ function go(t){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
+const BUILD = 'android-v0.3.8';
 const Cap = window.Capacitor;
 const isNative = !!(Cap && Cap.isNativePlatform && Cap.isNativePlatform());
 const Vpn = (Cap && Cap.registerPlugin) ? Cap.registerPlugin('Vpn') : null;
+
+// ---------- диагностика (видимая в приложении) ----------
+let dbgLines=[];
+function dbg(msg){
+  const t=new Date().toISOString().substr(11,8);
+  dbgLines.push(t+' '+msg); if(dbgLines.length>40) dbgLines.shift();
+  const el=document.getElementById('dbg'); if(el){ el.classList.add('on'); el.textContent=dbgLines.join('\n'); el.scrollTop=el.scrollHeight; }
+}
+function copyDbg(){ try{ navigator.clipboard.writeText(dbgLines.join('\n')); toast('Лог скопирован'); }catch(e){} }
+window.addEventListener('error',e=>dbg('JS ERR: '+(e.message||e)));
 const API_BASE = 'http://127.0.0.1:9090';
 const GROUP = 'PROXY';
 function safeJson(s){ try{ return JSON.parse(s); }catch{ return null; } }
@@ -272,21 +286,23 @@ function setUiConnected(on){
 function setStatusText(t){ const sv=document.getElementById('status-val'); if(sv) sv.textContent=t; }
 
 async function toggleConnect(){
-  if(!isNative || !Vpn){ setUiConnected(!connected); return; } // веб-превью — демо
+  dbg('тап connect | native='+isNative+' plugin='+(!!Vpn)+' hasStart='+(!!(Vpn&&Vpn.start)));
+  if(!isNative || !Vpn){ dbg('НЕ нативно → демо-режим (плагин недоступен!)'); setUiConnected(!connected); return; }
   if(connected){
-    setStatusText('○ ОТКЛЮЧЕНИЕ…');
-    try{ await Vpn.stop(); }catch(e){}
+    setStatusText('○ ОТКЛЮЧЕНИЕ…'); dbg('Vpn.stop()');
+    try{ await Vpn.stop(); }catch(e){ dbg('stop err: '+e); }
     return;
   }
   const sub=getSubUrl();
   if(!sub){ toast('Сначала добавьте подписку'); go('subs'); openSubModal(); return; }
-  setStatusText('◌ ПОДКЛЮЧЕНИЕ…');
-  try{ await Vpn.start({ subUrl: sub, hwid: getHwid() }); }
-  catch(e){ setStatusText('○ ОТКЛЮЧЕНО'); toast('Не удалось подключиться: '+(e&&e.message?e.message:e)); }
+  setStatusText('◌ ПОДКЛЮЧЕНИЕ…'); dbg('Vpn.start(sub='+sub.substr(0,28)+'…)');
+  try{ const r=await Vpn.start({ subUrl: sub, hwid: getHwid() }); dbg('start() вернул: '+JSON.stringify(r||{})); }
+  catch(e){ setStatusText('○ ОТКЛЮЧЕНО'); dbg('start() REJECT: '+(e&&e.message?e.message:e)); toast('Ошибка старта: '+(e&&e.message?e.message:e)); }
 }
 
 if(Vpn && Vpn.addListener){
   Vpn.addListener('vpnState', (s)=>{
+    dbg('событие: '+s.state+(s.message?' — '+s.message:''));
     if(s.state==='connected') setUiConnected(true);
     else if(s.state==='disconnected') setUiConnected(false);
     else if(s.state==='error'){ setUiConnected(false); toast('VPN: '+(s.message||'ошибка')); }
@@ -458,6 +474,9 @@ applyTheme();
 applyModeLabel();
 renderSubs();
 setUiConnected(false);
+// стартовая диагностика окружения
+dbg('старт '+BUILD+' | Capacitor='+(!!Cap)+' native='+isNative+' plugin='+(!!Vpn));
+const vs=document.getElementById('ver-sub'); if(vs) vs.textContent='MISETANIBOX · '+BUILD.toUpperCase();
 </script>
 </body>
 </html>
