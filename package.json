@@ -1,0 +1,16 @@
+{
+  "name": "misetanibox-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "cap:add": "cap add android",
+    "cap:sync": "cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/core": "^6.1.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.2"
+  }
+}
