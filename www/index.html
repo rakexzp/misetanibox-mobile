@@ -137,6 +137,13 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
     <div class="row" style="color:var(--dim)" onclick="addSubscription()"><div class="grow"><div class="t">+ Добавить подписку</div><div class="s">ССЫЛКА НА КОНФИГ</div></div></div>
   </div>
 
+  <!-- ПРАВИЛА -->
+  <div class="view hidden" id="view-rules">
+    <div class="sec-title">Правила</div>
+    <div class="sec-sub" id="rules-sub">НЕ ПОДКЛЮЧЕНО</div>
+    <div id="rules-list"></div>
+  </div>
+
   <!-- НАСТРОЙКИ -->
   <div class="view hidden" id="view-settings">
     <div class="sec-title">Настройки</div>
@@ -166,6 +173,7 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
   <nav class="nav">
     <button class="active" data-tab="home" onclick="go('home')"><span class="g">◇</span>ГЛАВНАЯ</button>
     <button data-tab="servers" onclick="go('servers')"><span class="g">≡</span>СЕРВЕРЫ</button>
+    <button data-tab="rules" onclick="go('rules')"><span class="g">§</span>ПРАВИЛА</button>
     <button data-tab="subs" onclick="go('subs')"><span class="g">⊞</span>ПОДПИСКИ</button>
     <button data-tab="settings" onclick="go('settings')"><span class="g">⚙</span>НАСТРОЙКИ</button>
   </nav>
@@ -217,11 +225,23 @@ function go(t){
   for(const v of document.querySelectorAll('.view')) v.classList.add('hidden');
   document.getElementById('view-'+t).classList.remove('hidden');
   for(const b of document.querySelectorAll('.nav button')) b.classList.toggle('active', b.dataset.tab===t);
-  if(t==='servers') loadProxies();
+  if(t==='servers'){ connected ? loadProxies() : renderCachedServers(); }
+  if(t==='rules') loadRules();
+}
+async function loadRules(){
+  const sub=document.getElementById('rules-sub'), list=document.getElementById('rules-list');
+  if(!connected){ sub.textContent='НЕ ПОДКЛЮЧЕНО'; list.innerHTML='<div class="list-note">Правила ядра доступны после подключения.</div>'; return; }
+  const r=await core('GET','/rules');
+  if(!r.ok||!r.data||!r.data.rules){ sub.textContent='—'; list.innerHTML='<div class="list-note">Не удалось получить правила.</div>'; return; }
+  const rules=r.data.rules;
+  sub.textContent=rules.length+' ПРАВИЛ';
+  list.innerHTML=rules.slice(0,400).map(x=>
+    `<div class="row"><div class="grow"><div class="t" style="font-size:13px">${(x.payload||'MATCH').replace(/</g,'&lt;')}</div><div class="s">${x.type} → ${x.proxy}</div></div></div>`
+  ).join('');
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'android-v0.3.9';
+const BUILD = 'android-v0.3.10';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
@@ -282,8 +302,7 @@ function setUiConnected(on){
     clearInterval(sessTimer); sessTimer=null; document.getElementById('sess-time').textContent='00:00';
     stopTraffic();
     updateHomeServer('', null);
-    document.getElementById('servers-sub').textContent='НЕ ПОДКЛЮЧЕНО';
-    document.getElementById('server-list').innerHTML='<div class="list-note">Подключитесь, чтобы увидеть серверы подписки.</div>';
+    renderCachedServers();
   }
 }
 function setStatusText(t){ const sv=document.getElementById('status-val'); if(sv) sv.textContent=t; }
@@ -337,6 +356,7 @@ async function loadProxies(){
     setServersNote('Подписка загружается ядром. Если остаётся пусто — вероятно ссылка недоступна или не отдаёт clash/mihomo/v2ray-конфиг.');
     return;
   }
+  try{ localStorage.setItem('mise_lastServers', JSON.stringify({all:g.all, now:g.now})); }catch(e){}
   document.getElementById('servers-sub').textContent=g.all.length+' УЗЛОВ';
   document.getElementById('server-list').innerHTML=
     `<div class="row" onclick="pingAll()"><div class="grow"><div class="t">Проверить задержки</div><div class="s">ПИНГ ВСЕХ УЗЛОВ</div></div><span class="chev">⟳</span></div>`+
@@ -346,6 +366,21 @@ async function loadProxies(){
       return `<div class="row" onclick="selectNode('${n.replace(/'/g,"\\'")}')">${flagImg(n,'flag')}<div class="grow"><div class="t">${cleanName(n)}</div><div class="s">${active?'● ВЫБРАН':''}</div></div>${ping}</div>`;
     }).join('');
   updateHomeServer(g.now, delays[g.now]);
+}
+// показать сохранённый список серверов, когда туннель выключен
+function renderCachedServers(){
+  const raw=localStorage.getItem('mise_lastServers');
+  const cached = raw ? safeJson(raw) : null;
+  const sub=document.getElementById('servers-sub'), list=document.getElementById('server-list');
+  if(!cached || !cached.all || !cached.all.length){
+    sub.textContent='НЕ ПОДКЛЮЧЕНО'; list.innerHTML='<div class="list-note">Подключитесь, чтобы увидеть серверы подписки.</div>'; return;
+  }
+  sub.textContent=cached.all.length+' УЗЛОВ · ОФФЛАЙН';
+  list.innerHTML='<div class="list-note">Список из прошлой сессии. Подключитесь, чтобы выбрать сервер и замерить пинг.</div>'+
+    cached.all.map(n=>{
+      const active=n===cached.now;
+      return `<div class="row" style="opacity:.6">${flagImg(n,'flag')}<div class="grow"><div class="t">${cleanName(n)}</div><div class="s">${active?'● БЫЛ ВЫБРАН':''}</div></div></div>`;
+    }).join('');
 }
 // после коннекта ждём, пока ядро скачает подписку и поднимет API
 async function waitForServers(){

@@ -136,13 +136,17 @@ class MihomoVpnService : VpnService() {
             |  fake-ip-range: 198.18.0.1/16
             |  fake-ip-filter:
             |    - "*.lan"
+            |    - "*.local"
             |    - "localhost.ptlogin2.qq.com"
-            |  nameserver:
-            |    - https://1.1.1.1/dns-query
-            |    - https://8.8.8.8/dns-query
             |  default-nameserver:
-            |    - 1.1.1.1
-            |    - 8.8.8.8
+            |    - 77.88.8.8
+            |    - 223.5.5.5
+            |  nameserver:
+            |    - 77.88.8.8
+            |    - 223.5.5.5
+            |  proxy-server-nameserver:
+            |    - 77.88.8.8
+            |    - 223.5.5.5
             |proxy-providers:
             |  main:
             |    type: http
