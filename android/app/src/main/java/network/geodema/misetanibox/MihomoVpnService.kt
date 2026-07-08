@@ -172,7 +172,7 @@ class MihomoVpnService : VpnService() {
         val notif: Notification = Notification.Builder(this, CHANNEL_ID)
             .setContentTitle("Misetanibox")
             .setContentText("Туннель активен")
-            .setSmallIcon(android.R.drawable.stat_sys_vpn_ic)
+            .setSmallIcon(R.mipmap.ic_launcher)
             .setContentIntent(pi)
             .setOngoing(true)
             .build()
