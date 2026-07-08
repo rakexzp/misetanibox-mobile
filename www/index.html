@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Misetanibox</title>
+<script src="capacitor.js"></script>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -220,10 +221,12 @@ function go(t){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'android-v0.3.8';
+const BUILD = 'android-v0.3.9';
 const Cap = window.Capacitor;
-const isNative = !!(Cap && Cap.isNativePlatform && Cap.isNativePlatform());
-const Vpn = (Cap && Cap.registerPlugin) ? Cap.registerPlugin('Vpn') : null;
+const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
+const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
+const Vpn = (Cap && Cap.registerPlugin) ? Cap.registerPlugin('Vpn')
+          : (Cap && Cap.Plugins ? Cap.Plugins.Vpn : null);
 
 // ---------- диагностика (видимая в приложении) ----------
 let dbgLines=[];
@@ -475,7 +478,7 @@ applyModeLabel();
 renderSubs();
 setUiConnected(false);
 // стартовая диагностика окружения
-dbg('старт '+BUILD+' | Capacitor='+(!!Cap)+' native='+isNative+' plugin='+(!!Vpn));
+dbg('старт '+BUILD+' | Cap='+(!!Cap)+' platform='+platform+' native='+isNative+' plugin='+(!!Vpn)+' reg='+(!!(Cap&&Cap.registerPlugin)));
 const vs=document.getElementById('ver-sub'); if(vs) vs.textContent='MISETANIBOX · '+BUILD.toUpperCase();
 </script>
 </body>
