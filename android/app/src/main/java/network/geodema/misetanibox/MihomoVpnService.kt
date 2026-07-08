@@ -127,6 +127,7 @@ class MihomoVpnService : VpnService() {
             |log-level: info
             |ipv6: false
             |unified-delay: true
+            |external-controller: 127.0.0.1:9090
             |dns:
             |  enable: true
             |  listen: 0.0.0.0:1053
