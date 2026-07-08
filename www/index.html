@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Misetanibox</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0A0A0A; --fg:#F4F4F2;
+  --dim:rgba(244,244,242,.64); --mut:rgba(244,244,242,.4); --ln:rgba(244,244,242,.16);
+  --ok:oklch(.76 .17 150); --mid:oklch(.8 .15 85); --bad:oklch(.68 .21 27);
+  --rad:6px;
+}
+:root[data-theme=light]{
+  --bg:#F4F4F2; --fg:#0A0A0A;
+  --dim:rgba(10,10,10,.64); --mut:rgba(10,10,10,.4); --ln:rgba(10,10,10,.16);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;overflow:hidden}
+.app{display:flex;flex-direction:column;height:100dvh}
+.mono{font-family:'JetBrains Mono',monospace}
+.statusbar{display:flex;justify-content:space-between;align-items:center;height:38px;padding:0 24px;font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.08em;color:var(--dim);flex:none}
+.statusbar .r{display:flex;gap:12px}
+.head{display:flex;align-items:center;justify-content:space-between;padding:10px 24px 0;flex:none}
+.brand{display:flex;align-items:center;gap:9px}
+.brand img{width:22px;height:22px;border-radius:6px;border:1px solid var(--ln)}
+.brand span{font-weight:700;font-size:12px;letter-spacing:.24em}
+.head-r{display:flex;align-items:center;gap:14px}
+.head-r .core{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.14em;color:var(--mut)}
+.icon-btn{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border:1px solid var(--ln);border-radius:var(--rad);font-size:13px;color:var(--dim);background:none;cursor:pointer}
+.view{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.view::-webkit-scrollbar{display:none}
+
+/* ГЛАВНАЯ */
+.status-blk{padding:34px 24px 0}
+.status-lbl{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.2em;color:var(--mut)}
+.status-val{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.14em;color:var(--dim);margin-top:8px}
+.connect{margin-top:26px;border-top:1px solid var(--fg);border-bottom:1px solid var(--fg);padding:24px;cursor:pointer;user-select:none}
+.connect .big{font-weight:700;font-size:72px;line-height:.95;letter-spacing:-.02em}
+.connect .sub{display:flex;justify-content:space-between;align-items:center;margin-top:16px;font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.16em;color:var(--mut)}
+.server-blk{padding:22px 24px 0;display:flex;align-items:center;justify-content:space-between}
+.server-blk .l{display:flex;align-items:center;gap:12px}
+.server-blk .flag{width:26px;height:19px;border-radius:2px;border:1px solid var(--ln);object-fit:cover;background:var(--ln)}
+.server-blk .name{font-weight:600;font-size:17px;letter-spacing:-.01em}
+.server-blk .meta{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.12em;color:var(--mut);margin-top:3px}
+.server-blk .ping{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--ok)}
+.sess{margin:22px 24px 0;padding-top:18px;border-top:1px solid var(--ln);display:flex;justify-content:space-between}
+.sess .cell .k{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.16em;color:var(--mut)}
+.sess .cell .v{font-weight:700;font-size:22px;margin-top:4px}
+
+/* СПИСКИ (серверы/подписки/настройки) */
+.sec-title{padding:26px 24px 4px;font-weight:800;font-size:34px;letter-spacing:-.02em}
+.sec-sub{padding:0 24px 10px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.14em;color:var(--mut)}
+.row{display:flex;align-items:center;gap:12px;padding:15px 24px;border-top:1px solid var(--ln);cursor:pointer}
+.row:active{background:var(--ln)}
+.row .flag{width:24px;height:18px;border-radius:2px;border:1px solid var(--ln);object-fit:cover;background:var(--ln);flex:none}
+.row .grow{flex:1;min-width:0}
+.row .t{font-weight:600;font-size:16px;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .s{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.1em;color:var(--mut);margin-top:2px}
+.row .ping{font-family:'JetBrains Mono',monospace;font-size:12px;flex:none}
+.row .chev{color:var(--mut);font-size:16px;flex:none}
+.toggle{width:44px;height:26px;border-radius:20px;border:1px solid var(--ln);position:relative;flex:none;background:none;cursor:pointer}
+.toggle::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--dim);transition:.15s}
+.toggle.on{background:var(--fg);border-color:var(--fg)}
+.toggle.on::after{left:23px;background:var(--bg)}
+
+/* НИЖНЯЯ НАВИГАЦИЯ */
+.nav{display:flex;border-top:1px solid var(--fg);flex:none}
+.nav button{flex:1;padding:12px 0 calc(12px + env(safe-area-inset-bottom));background:none;border:none;color:var(--mut);font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.14em;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px}
+.nav button .g{font-size:15px}
+.nav button.active{color:var(--fg)}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="statusbar"><span id="clock">09:41</span><div class="r"><span>VPN</span><span id="conn-badge">○</span></div></div>
+  <div class="head">
+    <div class="brand"><img src="logo.png" alt=""><span>MISETANIBOX</span></div>
+    <div class="head-r"><span class="core">MIHOMO</span><button class="icon-btn" onclick="toggleTheme()">◐</button></div>
+  </div>
+
+  <!-- ГЛАВНАЯ -->
+  <div class="view" id="view-home">
+    <div class="status-blk">
+      <div class="status-lbl">СТАТУС</div>
+      <div class="status-val" id="status-val">○ ОТКЛЮЧЕНО</div>
+    </div>
+    <div class="connect" id="connect" onclick="toggleConnect()">
+      <div class="big" id="connect-big">ПОДКЛЮ-<br>ЧИТЬСЯ</div>
+      <div class="sub"><span>ТАП — ЗАПУСК ТУННЕЛЯ</span><span id="mode-lbl">ГЛОБАЛЬНЫЙ</span></div>
+    </div>
+    <div class="server-blk" onclick="go('servers')">
+      <div class="l">
+        <img class="flag" src="flags/nl.svg" alt="">
+        <div><div class="name">Нидерланды</div><div class="meta">AMS-01 · VLESS</div></div>
+      </div>
+      <div class="ping">24 мс</div>
+    </div>
+    <div class="sess">
+      <div class="cell"><div class="k">СЕССИЯ</div><div class="v" id="sess-time">00:00</div></div>
+      <div class="cell" style="text-align:right"><div class="k">ТРАФИК</div><div class="v" id="sess-data">0 МБ</div></div>
+    </div>
+  </div>
+
+  <!-- СЕРВЕРЫ -->
+  <div class="view hidden" id="view-servers">
+    <div class="sec-title">Серверы</div>
+    <div class="sec-sub">СМАРТ · 8 УЗЛОВ</div>
+    <div class="row"><span style="font-size:15px">⚡</span><div class="grow"><div class="t">Смарт (авто)</div><div class="s">УМНЫЙ ВЫБОР</div></div><span class="chev">›</span></div>
+    <div id="server-list"></div>
+  </div>
+
+  <!-- ПОДПИСКИ -->
+  <div class="view hidden" id="view-subs">
+    <div class="sec-title">Подписки</div>
+    <div class="sec-sub">1 АКТИВНА</div>
+    <div class="row"><div class="grow"><div class="t">Моя подписка</div><div class="s">1.2 ГБ / 100 ГБ · ДО 30.12</div></div><span class="chev">›</span></div>
+    <div class="row" style="color:var(--dim)"><div class="grow"><div class="t">+ Добавить подписку</div><div class="s">ССЫЛКА ИЛИ DNS</div></div></div>
+  </div>
+
+  <!-- НАСТРОЙКИ -->
+  <div class="view hidden" id="view-settings">
+    <div class="sec-title">Настройки</div>
+    <div class="sec-sub">MISETANIBOX · V1.0.0</div>
+    <div class="row"><div class="grow"><div class="t">Режим TUN</div><div class="s">ПОЛНЫЙ ПЕРЕХВАТ ТРАФИКА</div></div><button class="toggle on" onclick="this.classList.toggle('on')"></button></div>
+    <div class="row"><div class="grow"><div class="t">Автозапуск</div><div class="s">ПРИ ВКЛЮЧЕНИИ УСТРОЙСТВА</div></div><button class="toggle" onclick="this.classList.toggle('on')"></button></div>
+    <div class="row"><div class="grow"><div class="t">Тема</div><div class="s">ТЁМНАЯ / СВЕТЛАЯ</div></div><span class="chev" onclick="toggleTheme()">◐</span></div>
+    <div class="row"><div class="grow"><div class="t">О приложении</div><div class="s">MIHOMO · CLASH META CORE</div></div><span class="chev">›</span></div>
+  </div>
+
+  <nav class="nav">
+    <button class="active" data-tab="home" onclick="go('home')"><span class="g">◇</span>ГЛАВНАЯ</button>
+    <button data-tab="servers" onclick="go('servers')"><span class="g">≡</span>СЕРВЕРЫ</button>
+    <button data-tab="subs" onclick="go('subs')"><span class="g">⊞</span>ПОДПИСКИ</button>
+    <button data-tab="settings" onclick="go('settings')"><span class="g">⚙</span>НАСТРОЙКИ</button>
+  </nav>
+</div>
+
+<script>
+const SERVERS=[
+  {name:'Нидерланды',meta:'AMS-01 · VLESS',flag:'nl',ping:24},
+  {name:'Германия',meta:'FRA-02 · VLESS',flag:'de',ping:31},
+  {name:'Финляндия',meta:'HEL-01 · TROJAN',flag:'fi',ping:19},
+  {name:'США',meta:'NYC-03 · VMESS',flag:'us',ping:112},
+  {name:'Швеция',meta:'STO-01 · VLESS',flag:'se',ping:28},
+  {name:'Латвия',meta:'RIX-01 · VLESS',flag:'lv',ping:22},
+];
+function pingColor(p){return p<60?'var(--ok)':p<150?'var(--mid)':'var(--bad)'}
+function renderServers(){
+  document.getElementById('server-list').innerHTML=SERVERS.map(s=>
+    `<div class="row"><img class="flag" src="flags/${s.flag}.svg" alt=""><div class="grow"><div class="t">${s.name}</div><div class="s">${s.meta}</div></div><span class="ping" style="color:${pingColor(s.ping)}">${s.ping} мс</span></div>`
+  ).join('');
+}
+renderServers();
+
+let tab='home';
+function go(t){
+  tab=t;
+  for(const v of document.querySelectorAll('.view')) v.classList.add('hidden');
+  document.getElementById('view-'+t).classList.remove('hidden');
+  for(const b of document.querySelectorAll('.nav button')) b.classList.toggle('active', b.dataset.tab===t);
+}
+
+let connected=false, sessStart=0, sessTimer=null;
+function toggleConnect(){
+  connected=!connected;
+  const big=document.getElementById('connect-big');
+  const sv=document.getElementById('status-val');
+  const badge=document.getElementById('conn-badge');
+  if(connected){
+    big.innerHTML='ОТКЛЮ-<br>ЧИТЬСЯ'; sv.textContent='● ПОДКЛЮЧЕНО'; sv.style.color='var(--ok)'; badge.textContent='●';
+    sessStart=Date.now();
+    sessTimer=setInterval(()=>{
+      const s=Math.floor((Date.now()-sessStart)/1000);
+      document.getElementById('sess-time').textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+    },1000);
+    // TODO(phase2): вызов нативного VpnService-плагина Capacitor
+  }else{
+    big.innerHTML='ПОДКЛЮ-<br>ЧИТЬСЯ'; sv.textContent='○ ОТКЛЮЧЕНО'; sv.style.color=''; badge.textContent='○';
+    clearInterval(sessTimer); document.getElementById('sess-time').textContent='00:00';
+  }
+}
+function toggleTheme(){
+  const r=document.documentElement;
+  r.setAttribute('data-theme', r.getAttribute('data-theme')==='light'?'':'light');
+}
+setInterval(()=>{const d=new Date();document.getElementById('clock').textContent=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')},1000);
+</script>
+</body>
+</html>

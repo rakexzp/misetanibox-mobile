@@ -1,0 +1,6 @@
+{
+  "appId": "network.geodema.misetanibox",
+  "appName": "Misetanibox",
+  "webDir": "www",
+  "android": { "allowMixedContent": true }
+}
