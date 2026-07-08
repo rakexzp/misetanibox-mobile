@@ -225,7 +225,7 @@ function go(t){
   for(const v of document.querySelectorAll('.view')) v.classList.add('hidden');
   document.getElementById('view-'+t).classList.remove('hidden');
   for(const b of document.querySelectorAll('.nav button')) b.classList.toggle('active', b.dataset.tab===t);
-  if(t==='servers'){ connected ? loadProxies() : renderCachedServers(); }
+  if(t==='servers'){ connected ? loadProxies() : previewServers(); }
   if(t==='rules') loadRules();
 }
 async function loadRules(){
@@ -241,7 +241,7 @@ async function loadRules(){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'android-v0.3.10';
+const BUILD = 'android-v0.3.11';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
@@ -382,6 +382,58 @@ function renderCachedServers(){
       return `<div class="row" style="opacity:.6">${flagImg(n,'flag')}<div class="grow"><div class="t">${cleanName(n)}</div><div class="s">${active?'● БЫЛ ВЫБРАН':''}</div></div></div>`;
     }).join('');
 }
+
+// ---------- превью серверов из подписки (без запуска VPN) ----------
+function b64decode(s){ try{ return decodeURIComponent(escape(atob(s.replace(/\s+/g,'')))); }catch(e){ try{ return atob(s.replace(/\s+/g,'')); }catch{ return ''; } } }
+function parseV2rayNames(text){
+  const t=text.trim(); let body=t;
+  if(/^[A-Za-z0-9+/=\s]+$/.test(t) && t.length>40){ const d=b64decode(t); if(d.includes('://')) body=d; }
+  if(!body.includes('://')) return [];
+  const names=[];
+  for(const line of body.split(/\r?\n/)){
+    const l=line.trim(); const h=l.indexOf('#'); if(!l.includes('://')||h<0) continue;
+    try{ names.push(decodeURIComponent(l.slice(h+1))); }catch{ names.push(l.slice(h+1)); }
+  }
+  return names;
+}
+function parseClashNames(text){
+  if(!/proxies\s*:/.test(text)) return [];
+  const m=text.match(/(?:^|\n)proxies\s*:\s*\n([\s\S]*?)(?:\n[a-zA-Z][\w-]*\s*:|\s*$)/);
+  const block = m ? m[1] : '';
+  const names=[]; const re=/\bname\s*:\s*(['"]?)([^'"\n,}]+)\1/g; let x;
+  while((x=re.exec(block))){ const n=x[2].trim(); if(n) names.push(n); }
+  return names;
+}
+function parseSubNames(text){ const v=parseV2rayNames(text); return v.length?v:parseClashNames(text); }
+
+function getPreferred(){ return localStorage.getItem('mise_preferred'); }
+function preSelect(name){
+  localStorage.setItem('mise_preferred', name); toast('Сервер по умолчанию: '+cleanName(name));
+  const c=safeJson(localStorage.getItem('mise_lastServers')); if(c&&c.all) renderPreviewServers(c.all);
+}
+function renderPreviewServers(names){
+  const pref=getPreferred();
+  document.getElementById('servers-sub').textContent=names.length+' УЗЛОВ · ПРЕВЬЮ';
+  document.getElementById('server-list').innerHTML=
+    '<div class="list-note">Пинг и подключение — после запуска VPN. Тап — выбрать сервер по умолчанию.</div>'+
+    names.map(n=>{
+      const active=n===pref;
+      return `<div class="row" onclick="preSelect('${n.replace(/'/g,"\\'")}')">${flagImg(n,'flag')}<div class="grow"><div class="t">${cleanName(n)}</div><div class="s">${active?'● ВЫБРАН':''}</div></div></div>`;
+    }).join('');
+}
+async function previewServers(){
+  const sub=getSubUrl();
+  const subEl=document.getElementById('servers-sub'), list=document.getElementById('server-list');
+  if(!sub){ subEl.textContent='НЕТ ПОДПИСКИ'; list.innerHTML='<div class="list-note">Добавьте подписку на вкладке «Подписки».</div>'; return; }
+  if(!Vpn || !Vpn.fetchSub){ renderCachedServers(); return; }
+  subEl.textContent='ЗАГРУЗКА…'; list.innerHTML='<div class="list-note">Загружаю список серверов из подписки…</div>';
+  const r=await Vpn.fetchSub({url:sub, hwid:getHwid()});
+  if(!r || r.status<200 || r.status>=300 || !r.body){ dbg('fetchSub status='+(r&&r.status)+' err='+((r&&r.error)||'')); renderCachedServers(); return; }
+  const names=parseSubNames(r.body); dbg('превью: '+names.length+' серверов из подписки');
+  if(!names.length){ subEl.textContent='—'; list.innerHTML='<div class="list-note">Не удалось разобрать список. Формат подписки не распознан (не clash/v2ray).</div>'; return; }
+  localStorage.setItem('mise_lastServers', JSON.stringify({all:names, now:getPreferred()}));
+  renderPreviewServers(names);
+}
 // после коннекта ждём, пока ядро скачает подписку и поднимет API
 async function waitForServers(){
   for(let i=0;i<20;i++){
@@ -389,7 +441,11 @@ async function waitForServers(){
     const r=await core('GET','/proxies');
     if(r.ok && r.data){
       const g=r.data.proxies && r.data.proxies[GROUP];
-      if(g && g.all && g.all.length){ loadProxies(); return; }
+      if(g && g.all && g.all.length){
+        const pref=getPreferred();
+        if(pref && g.all.includes(pref) && pref!==g.now){ await core('PUT','/proxies/'+encodeURIComponent(GROUP),{name:pref}); }
+        loadProxies(); return;
+      }
       if(i===3){ core('PUT','/providers/proxies/main'); } // подтолкнуть обновление провайдера
     }
     loadProxies();
@@ -398,7 +454,7 @@ async function waitForServers(){
 }
 async function selectNode(name){
   const r=await core('PUT','/proxies/'+encodeURIComponent(GROUP),{name});
-  if(r.ok){ toast('Сервер: '+cleanName(name)); loadProxies(); }
+  if(r.ok){ localStorage.setItem('mise_preferred', name); toast('Сервер: '+cleanName(name)); loadProxies(); }
   else toast('Не удалось выбрать сервер');
 }
 async function pingAll(){
@@ -422,12 +478,6 @@ function openSubModal(){
   setTimeout(()=>inp.focus(),50);
 }
 function closeSubModal(){ document.getElementById('sub-modal').classList.add('hidden'); }
-function saveSubModal(){
-  const url=document.getElementById('sub-input').value.trim();
-  if(!url){ toast('Введите ссылку'); return; }
-  localStorage.setItem('mise_subUrl', url);
-  closeSubModal(); renderSubs(); toast('Подписка сохранена');
-}
 function renderSubs(){
   const el=document.getElementById('subs-active');
   if(el) el.style.display = getSubUrl() ? 'flex' : 'none';
@@ -482,7 +532,8 @@ async function saveSubModal(){
     url=txt;
   }
   localStorage.setItem('mise_subUrl', url);
-  closeSubModal(); renderSubs(); toast('Подписка сохранена');
+  localStorage.removeItem('mise_lastServers'); localStorage.removeItem('mise_preferred');
+  closeSubModal(); renderSubs(); toast('Подписка сохранена'); go('servers');
 }
 
 // ---------- трафик (реальный, из API ядра) ----------

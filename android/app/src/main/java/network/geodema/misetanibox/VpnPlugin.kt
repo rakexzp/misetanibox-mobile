@@ -94,6 +94,41 @@ class VpnPlugin : Plugin() {
         call.resolve(ret)
     }
 
+    // Скачать подписку (для превью серверов до подключения) через нативный HTTP,
+    // с clash-UA (панели отдают конфиг по UA) и HWID-заголовками.
+    @PluginMethod
+    fun fetchSub(call: PluginCall) {
+        val url = call.getString("url") ?: ""
+        val hwid = call.getString("hwid") ?: ""
+        Thread {
+            val ret = JSObject()
+            try {
+                val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+                conn.connectTimeout = 8000
+                conn.readTimeout = 15000
+                conn.instanceFollowRedirects = true
+                conn.setRequestProperty("User-Agent", "clash-meta/mihomo")
+                if (hwid.isNotEmpty()) {
+                    conn.setRequestProperty("x-hwid", hwid)
+                    conn.setRequestProperty("x-device-os", "Android")
+                    conn.setRequestProperty("x-ver-os", Build.VERSION.RELEASE)
+                    conn.setRequestProperty("x-device-model", Build.MODEL)
+                }
+                val code = conn.responseCode
+                val text = (if (code in 200..299) conn.inputStream else conn.errorStream)
+                    ?.bufferedReader()?.use { it.readText() } ?: ""
+                conn.disconnect()
+                ret.put("status", code)
+                ret.put("body", text)
+            } catch (e: Exception) {
+                ret.put("status", 0)
+                ret.put("body", "")
+                ret.put("error", e.message ?: "fetch failed")
+            }
+            call.resolve(ret)
+        }.start()
+    }
+
     // Прокси к API ядра mihomo (external-controller) через нативный HTTP,
     // чтобы обойти CORS/mixed-content ограничения WebView.
     @PluginMethod
