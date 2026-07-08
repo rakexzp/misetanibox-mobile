@@ -70,6 +70,18 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
 .nav button .g{font-size:15px}
 .nav button.active{color:var(--fg)}
 .hidden{display:none}
+
+/* МОДАЛКА ПОДПИСКИ */
+.sub-modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;z-index:50}
+.sub-modal-card{width:100%;background:var(--bg);border-top:1px solid var(--fg);padding:26px 24px calc(26px + env(safe-area-inset-bottom))}
+.sub-modal-title{font-weight:800;font-size:26px;letter-spacing:-.02em}
+.sub-modal-hint{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.12em;color:var(--mut);margin-top:6px}
+.sub-input{width:100%;margin-top:16px;padding:14px;background:transparent;border:1px solid var(--ln);border-radius:var(--rad);color:var(--fg);font-family:'JetBrains Mono',monospace;font-size:13px}
+.sub-input:focus{outline:none;border-color:var(--fg)}
+.sub-modal-btns{display:flex;gap:10px;margin-top:16px}
+.sub-btn{flex:1;padding:14px;border-radius:var(--rad);font-weight:600;font-size:14px;cursor:pointer;border:1px solid var(--ln);background:transparent;color:var(--fg)}
+.sub-btn.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.list-note{padding:20px 24px;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.06em;color:var(--mut);line-height:1.7}
 </style>
 </head>
 <body>
@@ -91,10 +103,10 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
     </div>
     <div class="server-blk" onclick="go('servers')">
       <div class="l">
-        <img class="flag" src="flags/nl.svg" alt="">
-        <div><div class="name">Нидерланды</div><div class="meta">AMS-01 · VLESS</div></div>
+        <img class="flag" id="home-flag" src="" alt="" style="display:none">
+        <div><div class="name" id="home-name">Не выбран</div><div class="meta" id="home-meta">ПОДПИСКА НЕ ПОДКЛЮЧЕНА</div></div>
       </div>
-      <div class="ping">24 мс</div>
+      <div class="ping" id="home-ping"></div>
     </div>
     <div class="sess">
       <div class="cell"><div class="k">СЕССИЯ</div><div class="v" id="sess-time">00:00</div></div>
@@ -105,8 +117,7 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
   <!-- СЕРВЕРЫ -->
   <div class="view hidden" id="view-servers">
     <div class="sec-title">Серверы</div>
-    <div class="sec-sub">СМАРТ · 8 УЗЛОВ</div>
-    <div class="row"><span style="font-size:15px">⚡</span><div class="grow"><div class="t">Смарт (авто)</div><div class="s">УМНЫЙ ВЫБОР</div></div><span class="chev">›</span></div>
+    <div class="sec-sub" id="servers-sub">НЕ ПОДКЛЮЧЕНО</div>
     <div id="server-list"></div>
   </div>
 
@@ -128,6 +139,18 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
     <div class="row"><div class="grow"><div class="t">О приложении</div><div class="s">ВЕРСИЯ · ЛИЦЕНЗИЯ · АВТОРЫ</div></div><span class="chev">›</span></div>
   </div>
 
+  <div class="sub-modal hidden" id="sub-modal">
+    <div class="sub-modal-card">
+      <div class="sub-modal-title">Подписка</div>
+      <div class="sub-modal-hint">Ссылка на mihomo/clash-конфиг</div>
+      <input id="sub-input" class="sub-input" type="url" inputmode="url" autocapitalize="off" autocorrect="off" placeholder="https://...">
+      <div class="sub-modal-btns">
+        <button class="sub-btn ghost" onclick="closeSubModal()">Отмена</button>
+        <button class="sub-btn primary" onclick="saveSubModal()">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
   <nav class="nav">
     <button class="active" data-tab="home" onclick="go('home')"><span class="g">◇</span>ГЛАВНАЯ</button>
     <button data-tab="servers" onclick="go('servers')"><span class="g">≡</span>СЕРВЕРЫ</button>
@@ -137,21 +160,44 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
 </div>
 
 <script>
-const SERVERS=[
-  {name:'Нидерланды',meta:'AMS-01 · VLESS',flag:'nl',ping:24},
-  {name:'Германия',meta:'FRA-02 · VLESS',flag:'de',ping:31},
-  {name:'Финляндия',meta:'HEL-01 · TROJAN',flag:'fi',ping:19},
-  {name:'США',meta:'NYC-03 · VMESS',flag:'us',ping:112},
-  {name:'Швеция',meta:'STO-01 · VLESS',flag:'se',ping:28},
-  {name:'Латвия',meta:'RIX-01 · VLESS',flag:'lv',ping:22},
-];
-function pingColor(p){return p<60?'var(--ok)':p<150?'var(--mid)':'var(--bad)'}
-function renderServers(){
-  document.getElementById('server-list').innerHTML=SERVERS.map(s=>
-    `<div class="row"><img class="flag" src="flags/${s.flag}.svg" alt=""><div class="grow"><div class="t">${s.name}</div><div class="s">${s.meta}</div></div><span class="ping" style="color:${pingColor(s.ping)}">${s.ping} мс</span></div>`
-  ).join('');
+// ---------- тост (alert/prompt в WebView ненадёжны) ----------
+function toast(msg){
+  let t=document.getElementById('mise-toast');
+  if(!t){ t=document.createElement('div'); t.id='mise-toast'; document.body.appendChild(t);
+    t.style.cssText='position:fixed;left:16px;right:16px;bottom:calc(80px + env(safe-area-inset-bottom));z-index:100;background:var(--fg);color:var(--bg);padding:13px 16px;border-radius:8px;font-size:13px;font-weight:600;text-align:center;opacity:0;transition:opacity .2s;pointer-events:none';
+  }
+  t.textContent=msg; t.style.opacity='1';
+  clearTimeout(t._h); t._h=setTimeout(()=>{ t.style.opacity='0'; }, 3200);
 }
-renderServers();
+
+// ---------- определение страны по имени ноды ----------
+const FLAG_NAMES={us:['united states','usa','сша','америк'],gb:['united kingdom','britain','england','uk','британ','англи','лондон'],de:['germany','герман','франкфурт','frankfurt'],nl:['netherlands','нидерланд','амстердам','amsterdam'],fr:['france','франц','париж'],ru:['russia','росси','москв','moscow'],ua:['ukraine','украин'],se:['sweden','швеци'],fi:['finland','финлянд','helsinki'],no:['norway','норвег'],dk:['denmark','дани'],pl:['poland','польш'],ch:['switzerland','швейцар'],at:['austria','австри'],es:['spain','испани'],it:['italy','итали'],pt:['portugal','португал'],tr:['turkey','турци','istanbul'],jp:['japan','япони','tokyo'],hk:['hong kong','гонконг'],sg:['singapore','сингапур'],kr:['korea','корея'],tw:['taiwan','тайван'],cn:['china','китай'],in:['india','инди'],au:['australia','австрал'],ca:['canada','канад'],br:['brazil','бразил'],ae:['emirates','dubai','оаэ','эмират','дубай'],il:['israel','израил'],cz:['czech','чехи','prague'],ro:['romania','румын'],lv:['latvia','латви','riga'],lt:['lithuania','литв'],ee:['estonia','эстони'],kz:['kazakhstan','казахстан'],ge:['georgia','грузи'],am:['armenia','армени'],az:['azerbaijan','азербайдж'],by:['belarus','беларус']};
+const FLAG_CODES=new Set(Object.keys(FLAG_NAMES));
+function countryCode(name){
+  if(!name) return null;
+  // эмодзи-флаг
+  const arr=Array.from(name);
+  for(let i=0;i<arr.length-1;i++){
+    const a=arr[i].codePointAt(0),b=arr[i+1].codePointAt(0);
+    if(a>=0x1f1e6&&a<=0x1f1ff&&b>=0x1f1e6&&b<=0x1f1ff){
+      const c=String.fromCharCode(97+(a-0x1f1e6))+String.fromCharCode(97+(b-0x1f1e6));
+      if(c==='uk') return 'gb';
+      if(FLAG_CODES.has(c)) return c;
+    }
+  }
+  const lo=name.toLowerCase();
+  for(const [code,words] of Object.entries(FLAG_NAMES)) for(const w of words) if(lo.includes(w)) return code;
+  for(const tok of lo.split(/[^a-z]+/)){ if(tok==='uk') return 'gb'; if(tok.length===2&&FLAG_CODES.has(tok)) return tok; }
+  return null;
+}
+function flagImg(name,cls){
+  const c=countryCode(name);
+  return c ? `<img class="${cls}" src="flags/${c}.svg" alt="">` : `<span class="${cls}" style="background:var(--ln)"></span>`;
+}
+function cleanName(name){
+  return Array.from(name||'').filter(ch=>{const cp=ch.codePointAt(0);return !(cp>=0x1f1e6&&cp<=0x1f1ff);}).join('').replace(/^[\s|·・•\-–—_]+/,'').trim()||name;
+}
+function pingColor(p){return (p>0&&p<80)?'var(--ok)':(p<180)?'var(--mid)':'var(--bad)'}
 
 let tab='home';
 function go(t){
@@ -159,14 +205,16 @@ function go(t){
   for(const v of document.querySelectorAll('.view')) v.classList.add('hidden');
   document.getElementById('view-'+t).classList.remove('hidden');
   for(const b of document.querySelectorAll('.nav button')) b.classList.toggle('active', b.dataset.tab===t);
+  if(t==='servers') loadProxies();
 }
 
-// --- Capacitor: нативный VPN-плагин ---
+// ---------- Capacitor: нативный VPN-плагин ----------
 const Cap = window.Capacitor;
 const isNative = !!(Cap && Cap.isNativePlatform && Cap.isNativePlatform());
 const Vpn = (Cap && Cap.registerPlugin) ? Cap.registerPlugin('Vpn') : null;
+const API_BASE = 'http://127.0.0.1:9090';
+const GROUP = 'PROXY';
 
-// стабильный HWID устройства
 function getHwid(){
   let h = localStorage.getItem('mise_hwid');
   if(!h){ h = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())+Math.random()); localStorage.setItem('mise_hwid', h); }
@@ -175,6 +223,7 @@ function getHwid(){
 function getSubUrl(){ return localStorage.getItem('mise_subUrl') || ''; }
 
 let connected=false, sessStart=0, sessTimer=null;
+const delays={}; // имя ноды -> пинг
 function setUiConnected(on){
   connected=on;
   const big=document.getElementById('connect-big');
@@ -185,48 +234,109 @@ function setUiConnected(on){
       const s=Math.floor((Date.now()-sessStart)/1000);
       document.getElementById('sess-time').textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
     },1000); }
+    setTimeout(loadProxies, 1500); // ядру нужно скачать подписку
   }else{
     big.innerHTML='ПОДКЛЮ-<br>ЧИТЬСЯ'; sv.textContent='○ ОТКЛЮЧЕНО'; sv.style.color='';
     clearInterval(sessTimer); sessTimer=null; document.getElementById('sess-time').textContent='00:00';
+    updateHomeServer('', null);
+    document.getElementById('servers-sub').textContent='НЕ ПОДКЛЮЧЕНО';
+    document.getElementById('server-list').innerHTML='<div class="list-note">Подключитесь, чтобы увидеть серверы подписки.</div>';
   }
 }
 function setStatusText(t){ const sv=document.getElementById('status-val'); if(sv) sv.textContent=t; }
 
 async function toggleConnect(){
-  if(!isNative || !Vpn){ setUiConnected(!connected); return; } // веб-превью — просто демо
+  if(!isNative || !Vpn){ setUiConnected(!connected); return; } // веб-превью — демо
   if(connected){
     setStatusText('○ ОТКЛЮЧЕНИЕ…');
     try{ await Vpn.stop(); }catch(e){}
     return;
   }
   const sub=getSubUrl();
-  if(!sub){ alert('Сначала добавьте подписку (вкладка «Подписки»).'); go('subs'); return; }
+  if(!sub){ toast('Сначала добавьте подписку'); go('subs'); openSubModal(); return; }
   setStatusText('◌ ПОДКЛЮЧЕНИЕ…');
-  try{
-    await Vpn.start({ subUrl: sub, hwid: getHwid() });
-  }catch(e){
-    setStatusText('○ ОТКЛЮЧЕНО');
-    alert('Не удалось подключиться: '+(e && e.message ? e.message : e));
-  }
+  try{ await Vpn.start({ subUrl: sub, hwid: getHwid() }); }
+  catch(e){ setStatusText('○ ОТКЛЮЧЕНО'); toast('Не удалось подключиться: '+(e&&e.message?e.message:e)); }
 }
 
-// события состояния от нативного сервиса
 if(Vpn && Vpn.addListener){
   Vpn.addListener('vpnState', (s)=>{
     if(s.state==='connected') setUiConnected(true);
     else if(s.state==='disconnected') setUiConnected(false);
-    else if(s.state==='error'){ setUiConnected(false); alert('VPN: '+(s.message||'ошибка')); }
+    else if(s.state==='error'){ setUiConnected(false); toast('VPN: '+(s.message||'ошибка')); }
   });
 }
 
-function addSubscription(){
-  const url=prompt('Ссылка на подписку (mihomo/clash YAML):', getSubUrl());
-  if(url && url.trim()){ localStorage.setItem('mise_subUrl', url.trim()); renderSubs(); }
+// ---------- серверы из API ядра ----------
+function updateHomeServer(name, ping){
+  const f=document.getElementById('home-flag'), nm=document.getElementById('home-name'), mt=document.getElementById('home-meta'), pg=document.getElementById('home-ping');
+  if(!name){ f.style.display='none'; nm.textContent='Не выбран'; mt.textContent='ПОДПИСКА НЕ ПОДКЛЮЧЕНА'; pg.textContent=''; return; }
+  const c=countryCode(name);
+  if(c){ f.src='flags/'+c+'.svg'; f.style.display=''; } else f.style.display='none';
+  nm.textContent=cleanName(name); mt.textContent='АКТИВНЫЙ СЕРВЕР';
+  pg.textContent = (ping&&ping>0) ? ping+' мс' : ''; pg.style.color=ping?pingColor(ping):'';
+}
+
+async function loadProxies(){
+  if(!connected) return;
+  try{
+    const r=await fetch(API_BASE+'/proxies');
+    const j=await r.json();
+    const g=j.proxies&&j.proxies[GROUP];
+    if(!g||!g.all){ document.getElementById('server-list').innerHTML='<div class="list-note">Подписка ещё грузится ядром… потяните позже или нажмите «Проверить».</div>'; return; }
+    document.getElementById('servers-sub').textContent=g.all.length+' УЗЛОВ';
+    document.getElementById('server-list').innerHTML=
+      `<div class="row" onclick="pingAll()"><div class="grow"><div class="t">Проверить задержки</div><div class="s">ПИНГ ВСЕХ УЗЛОВ</div></div><span class="chev">⟳</span></div>`+
+      g.all.map(n=>{
+        const active=n===g.now, d=delays[n];
+        const ping = d===undefined?'' : (d>0?`<span class="ping" style="color:${pingColor(d)}">${d} мс</span>`:`<span class="ping" style="color:var(--bad)">—</span>`);
+        return `<div class="row" onclick="selectNode('${n.replace(/'/g,"\\'")}')">${flagImg(n,'flag')}<div class="grow"><div class="t">${cleanName(n)}</div><div class="s">${active?'● ВЫБРАН':''}</div></div>${ping}</div>`;
+      }).join('');
+    const cur=g.now; updateHomeServer(cur, delays[cur]);
+  }catch(e){
+    document.getElementById('server-list').innerHTML='<div class="list-note">API ядра недоступно. Убедитесь, что туннель подключён.</div>';
+  }
+}
+async function selectNode(name){
+  try{
+    await fetch(API_BASE+'/proxies/'+encodeURIComponent(GROUP),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+    toast('Сервер: '+cleanName(name));
+    loadProxies();
+  }catch(e){ toast('Не удалось выбрать сервер'); }
+}
+async function pingAll(){
+  if(!connected) return;
+  try{
+    const r=await fetch(API_BASE+'/proxies'); const j=await r.json();
+    const g=j.proxies&&j.proxies[GROUP]; if(!g||!g.all) return;
+    toast('Проверка задержек…');
+    await Promise.all(g.all.map(async n=>{
+      try{
+        const rr=await fetch(API_BASE+'/proxies/'+encodeURIComponent(n)+'/delay?timeout=3000&url='+encodeURIComponent('http://www.gstatic.com/generate_204'));
+        const jj=await rr.json(); delays[n]=(jj&&typeof jj.delay==='number')?jj.delay:-1;
+      }catch{ delays[n]=-1; }
+    }));
+    loadProxies();
+  }catch(e){ toast('Не удалось проверить'); }
+}
+
+// ---------- подписка (модалка вместо prompt) ----------
+function addSubscription(){ openSubModal(); }
+function openSubModal(){
+  const inp=document.getElementById('sub-input'); inp.value=getSubUrl();
+  document.getElementById('sub-modal').classList.remove('hidden');
+  setTimeout(()=>inp.focus(),50);
+}
+function closeSubModal(){ document.getElementById('sub-modal').classList.add('hidden'); }
+function saveSubModal(){
+  const url=document.getElementById('sub-input').value.trim();
+  if(!url){ toast('Введите ссылку'); return; }
+  localStorage.setItem('mise_subUrl', url);
+  closeSubModal(); renderSubs(); toast('Подписка сохранена');
 }
 function renderSubs(){
-  const has=getSubUrl();
   const el=document.getElementById('subs-active');
-  if(el) el.style.display = has ? 'flex' : 'none';
+  if(el) el.style.display = getSubUrl() ? 'flex' : 'none';
 }
 
 function toggleTheme(){
@@ -234,6 +344,7 @@ function toggleTheme(){
   r.setAttribute('data-theme', r.getAttribute('data-theme')==='light'?'':'light');
 }
 renderSubs();
+setUiConnected(false);
 </script>
 </body>
 </html>
