@@ -5,6 +5,7 @@ import (
 
 	"github.com/metacubex/mihomo/component/dialer"
 	C "github.com/metacubex/mihomo/constant"
+	"github.com/metacubex/mihomo/hub"
 	"github.com/metacubex/mihomo/hub/executor"
 )
 
@@ -45,7 +46,8 @@ func Start(homeDir, configYAML string, fd int) string {
 	if len(cfg.General.Tun.DNSHijack) == 0 {
 		cfg.General.Tun.DNSHijack = []string{"any:53"}
 	}
-	executor.ApplyConfig(cfg, true)
+	// hub.ApplyConfig = applyRoute (поднимает external-controller/API) + executor.ApplyConfig (ядро).
+	hub.ApplyConfig(cfg)
 	return ""
 }
 
