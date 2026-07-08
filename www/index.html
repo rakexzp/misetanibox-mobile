@@ -73,9 +73,13 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
 
 /* МОДАЛКА ПОДПИСКИ */
 .sub-modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;z-index:50}
+.sub-modal.hidden{display:none}
 .sub-modal-card{width:100%;background:var(--bg);border-top:1px solid var(--fg);padding:26px 24px calc(26px + env(safe-area-inset-bottom))}
 .sub-modal-title{font-weight:800;font-size:26px;letter-spacing:-.02em}
-.sub-modal-hint{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.12em;color:var(--mut);margin-top:6px}
+.sub-seg{display:flex;gap:8px;margin-top:14px}
+.sub-seg-btn{flex:1;padding:10px;border:1px solid var(--ln);border-radius:var(--rad);background:transparent;color:var(--mut);font-size:13px;font-weight:600;cursor:pointer}
+.sub-seg-btn.active{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.sub-modal-hint{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.12em;color:var(--mut);margin-top:12px}
 .sub-input{width:100%;margin-top:16px;padding:14px;background:transparent;border:1px solid var(--ln);border-radius:var(--rad);color:var(--fg);font-family:'JetBrains Mono',monospace;font-size:13px}
 .sub-input:focus{outline:none;border-color:var(--fg)}
 .sub-modal-btns{display:flex;gap:10px;margin-top:16px}
@@ -99,7 +103,7 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
     </div>
     <div class="connect" id="connect" onclick="toggleConnect()">
       <div class="big" id="connect-big">ПОДКЛЮ-<br>ЧИТЬСЯ</div>
-      <div class="sub"><span>ТАП — ЗАПУСК ТУННЕЛЯ</span><span id="mode-lbl">ГЛОБАЛЬНЫЙ</span></div>
+      <div class="sub"><span>ТАП — ЗАПУСК ТУННЕЛЯ</span><span id="mode-lbl" onclick="event.stopPropagation();cycleMode()">ПРАВИЛА</span></div>
     </div>
     <div class="server-blk" onclick="go('servers')">
       <div class="l">
@@ -139,11 +143,15 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
     <div class="row"><div class="grow"><div class="t">О приложении</div><div class="s">ВЕРСИЯ · ЛИЦЕНЗИЯ · АВТОРЫ</div></div><span class="chev">›</span></div>
   </div>
 
-  <div class="sub-modal hidden" id="sub-modal">
+  <div class="sub-modal hidden" id="sub-modal" onclick="if(event.target===this)closeSubModal()">
     <div class="sub-modal-card">
       <div class="sub-modal-title">Подписка</div>
-      <div class="sub-modal-hint">Ссылка на mihomo/clash-конфиг</div>
-      <input id="sub-input" class="sub-input" type="url" inputmode="url" autocapitalize="off" autocorrect="off" placeholder="https://...">
+      <div class="sub-seg">
+        <button class="sub-seg-btn active" id="seg-url" onclick="setSubMode('url')">По ссылке</button>
+        <button class="sub-seg-btn" id="seg-dns" onclick="setSubMode('dns')">Через DNS</button>
+      </div>
+      <div class="sub-modal-hint" id="sub-hint">Ссылка на mihomo/clash-конфиг</div>
+      <input id="sub-input" class="sub-input" type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://...">
       <div class="sub-modal-btns">
         <button class="sub-btn ghost" onclick="closeSubModal()">Отмена</button>
         <button class="sub-btn primary" onclick="saveSubModal()">Сохранить</button>
@@ -234,10 +242,12 @@ function setUiConnected(on){
       const s=Math.floor((Date.now()-sessStart)/1000);
       document.getElementById('sess-time').textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
     },1000); }
-    setTimeout(loadProxies, 1500); // ядру нужно скачать подписку
+    startTraffic();
+    setTimeout(()=>{ loadProxies(); applyModeToCore(); }, 1500); // ядру нужно скачать подписку
   }else{
     big.innerHTML='ПОДКЛЮ-<br>ЧИТЬСЯ'; sv.textContent='○ ОТКЛЮЧЕНО'; sv.style.color='';
     clearInterval(sessTimer); sessTimer=null; document.getElementById('sess-time').textContent='00:00';
+    stopTraffic();
     updateHomeServer('', null);
     document.getElementById('servers-sub').textContent='НЕ ПОДКЛЮЧЕНО';
     document.getElementById('server-list').innerHTML='<div class="list-note">Подключитесь, чтобы увидеть серверы подписки.</div>';
@@ -339,10 +349,83 @@ function renderSubs(){
   if(el) el.style.display = getSubUrl() ? 'flex' : 'none';
 }
 
-function toggleTheme(){
-  const r=document.documentElement;
-  r.setAttribute('data-theme', r.getAttribute('data-theme')==='light'?'':'light');
+// ---------- режим маршрутизации ----------
+const MODES=[{v:'rule',l:'ПРАВИЛА'},{v:'global',l:'ГЛОБАЛЬНО'},{v:'direct',l:'ПРЯМОЙ'}];
+function curMode(){ return localStorage.getItem('mise_mode')||'rule'; }
+function applyModeLabel(){ const m=MODES.find(x=>x.v===curMode())||MODES[0]; const el=document.getElementById('mode-lbl'); if(el) el.textContent=m.l; }
+async function applyModeToCore(){
+  if(!connected) return;
+  try{ await fetch(API_BASE+'/configs',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:curMode()})}); }catch(e){}
 }
+async function cycleMode(){
+  const i=MODES.findIndex(x=>x.v===curMode()); const next=MODES[(i+1)%MODES.length];
+  localStorage.setItem('mise_mode', next.v); applyModeLabel();
+  if(connected){ await applyModeToCore(); }
+  toast('Режим: '+next.l);
+}
+
+// ---------- подписка: URL / DNS TXT ----------
+let subMode='url';
+function setSubMode(m){
+  subMode=m;
+  document.getElementById('seg-url').classList.toggle('active',m==='url');
+  document.getElementById('seg-dns').classList.toggle('active',m==='dns');
+  const hint=document.getElementById('sub-hint'), inp=document.getElementById('sub-input');
+  if(m==='dns'){ hint.textContent='Домен с TXT-записью (обход блокировки адреса)'; inp.placeholder='sub.example.com'; }
+  else { hint.textContent='Ссылка на mihomo/clash-конфиг'; inp.placeholder='https://...'; }
+}
+// резолв TXT через DoH (Cloudflare → Yandex, RU-иммунный)
+async function resolveDnsTxt(domain){
+  const providers=['https://cloudflare-dns.com/dns-query','https://common.dot.dns.yandex.net/dns-query','https://dns.google/resolve'];
+  for(const base of providers){
+    try{
+      const r=await fetch(base+'?name='+encodeURIComponent(domain)+'&type=TXT',{headers:{accept:'application/dns-json'}});
+      const j=await r.json();
+      if(j.Answer){ for(const a of j.Answer){ let t=(a.data||'').replace(/^"|"$/g,'').replace(/" "/g,''); if(t) return t; } }
+    }catch(e){}
+  }
+  return '';
+}
+
+async function saveSubModal(){
+  const raw=document.getElementById('sub-input').value.trim();
+  if(!raw){ toast('Введите значение'); return; }
+  let url=raw;
+  if(subMode==='dns'){
+    toast('Получаю конфиг через DNS…');
+    const txt=await resolveDnsTxt(raw);
+    if(!txt){ toast('DNS TXT не найден для '+raw); return; }
+    url=txt;
+  }
+  localStorage.setItem('mise_subUrl', url);
+  closeSubModal(); renderSubs(); toast('Подписка сохранена');
+}
+
+// ---------- трафик (реальный, из API ядра) ----------
+function fmtBytes(b){ if(b<1024) return b+' Б'; const u=['КБ','МБ','ГБ','ТБ']; let i=-1; do{ b/=1024; i++; }while(b>=1024&&i<u.length-1); return b.toFixed(b<10?1:0)+' '+u[i]; }
+let trafTimer=null, totalUp=0, totalDown=0;
+function startTraffic(){
+  if(trafTimer) return;
+  trafTimer=setInterval(async()=>{
+    if(!connected) return;
+    try{
+      const r=await fetch(API_BASE+'/connections'); const j=await r.json();
+      totalUp=j.uploadTotal||0; totalDown=j.downloadTotal||0;
+      const el=document.getElementById('sess-data'); if(el) el.textContent=fmtBytes(totalUp+totalDown);
+    }catch(e){}
+  }, 2000);
+}
+function stopTraffic(){ clearInterval(trafTimer); trafTimer=null; const el=document.getElementById('sess-data'); if(el) el.textContent='0 Б'; }
+
+// ---------- тема (с сохранением) ----------
+function applyTheme(){ const t=localStorage.getItem('mise_theme'); document.documentElement.setAttribute('data-theme', t==='light'?'light':''); }
+function toggleTheme(){
+  const cur=localStorage.getItem('mise_theme')==='light'?'':'light';
+  localStorage.setItem('mise_theme', cur||'dark'); applyTheme();
+}
+
+applyTheme();
+applyModeLabel();
 renderSubs();
 setUiConnected(false);
 </script>
