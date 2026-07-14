@@ -99,7 +99,7 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
 <body>
 <div class="app">
   <div class="head">
-    <div class="brand"><img src="logo.png" alt=""><span class="brand-col"><span>MISETANIBOX</span><span class="brand-face" id="brand-face">(-_-)</span></span></div>
+    <div class="brand"><img src="logo.png" alt=""><span class="brand-col"><span>MISETANIBOX</span><span class="brand-face" id="brand-face">-_-</span></span></div>
     <div class="head-r"><button class="icon-btn" onclick="toggleTheme()">◐</button></div>
   </div>
 
@@ -246,7 +246,7 @@ async function loadRules(){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'android-v0.4.0';
+const BUILD = 'android-v0.4.1';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
@@ -286,10 +286,10 @@ function getHwid(){
 function getSubUrl(){ return localStorage.getItem('mise_subUrl') || ''; }
 
 // ---------- каомодзи-мордочка под брендом ----------
-const FACE_HAPPY=['\\(^o^)/','(^q^)','ᕕ( ᐛ )ᕗ','(๑˃ᴗ˂)','(≧▽≦)','(・‿・)'];
-const FACE_SLEEP=['(-_-)zzz','(￣ω￣)','(._.)','(≖_≖)'];
+const FACE_HAPPY=['^o^','^q^','^_^','XD','>ᴗ<','•‿•','\\o/','^ᴗ^'];
+const FACE_SLEEP=['-_-','._.','-.-','=_=','u_u','-_-zzz'];
 const rndFace=a=>a[Math.floor(Math.random()*a.length)];
-let faceBase='(-_-)';
+let faceBase='-_-';
 function setFace(on){
   const el=document.getElementById('brand-face'); if(!el) return;
   faceBase = on ? rndFace(FACE_HAPPY) : rndFace(FACE_SLEEP);
@@ -298,7 +298,7 @@ function setFace(on){
 }
 function blinkFace(){
   const el=document.getElementById('brand-face'); if(!el||document.hidden) return;
-  el.textContent = connected ? '(^_^)' : '(-‸-)';
+  el.textContent = connected ? '^_^' : 'u_u';
   setTimeout(()=>{ el.textContent=faceBase; },150);
 }
 setInterval(blinkFace,5200);
