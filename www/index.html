@@ -170,7 +170,8 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
     <div class="row"><div class="grow"><div class="t">Автозапуск</div><div class="s">ПОДНЯТЬ ТУННЕЛЬ ПРИ ВКЛЮЧЕНИИ УСТРОЙСТВА</div></div><button class="toggle" id="tgl-autostart" onclick="toggleAutostart(this)"></button></div>
     <div class="list-note" style="padding:10px 4px 0">Плитка в шторке и виджет на рабочем столе включают VPN одним тапом — добавь их через системное меню.</div>
     <div class="row"><div class="grow"><div class="t">Тема</div><div class="s">ТЁМНАЯ / СВЕТЛАЯ</div></div><span class="chev" onclick="toggleTheme()">◐</span></div>
-    <div class="row"><div class="grow"><div class="t">О приложении</div><div class="s">ВЕРСИЯ · ЛИЦЕНЗИЯ · АВТОРЫ</div></div><span class="chev">›</span></div>
+    <div class="row" onclick="showAbout()"><div class="grow"><div class="t">О приложении</div><div class="s">ВЕРСИЯ · ЛИЦЕНЗИЯ · АВТОРЫ</div></div><span class="chev">›</span></div>
+    <div class="list-note" id="about-note">Misetanibox · ядро mihomo (MetaCubeX). Android-версия — вклад @14Unight (плитка, виджет, автозапуск).</div>
   </div>
 
   <!-- РАЗДЕЛЬНЫЙ ТУННЕЛЬ ПО ПРИЛОЖЕНИЯМ -->
@@ -275,7 +276,7 @@ async function loadRules(){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'android-v0.4.3';
+const BUILD = 'android-v0.4.4';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
@@ -553,6 +554,9 @@ async function cycleMode(){
   if(connected){ await applyModeToCore(); }
   toast('Режим: '+next.l);
 }
+
+// ---------- о приложении ----------
+function showAbout(){ toast('Misetanibox '+BUILD+' · авторы: rakexzp, @14Unight'); }
 
 // ---------- автозапуск (нативный prefs) ----------
 async function initAutostart(){
