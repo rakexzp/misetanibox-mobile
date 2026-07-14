@@ -229,5 +229,8 @@ class MihomoVpnService : VpnService() {
         i.putExtra("state", state)
         i.putExtra("message", message)
         sendBroadcast(i)
+        // держим плитку в шторке и виджет в актуальном состоянии
+        try { VpnAppWidget.requestUpdate(this) } catch (_: Exception) {}
+        try { VpnTileService.requestUpdate(this) } catch (_: Exception) {}
     }
 }
