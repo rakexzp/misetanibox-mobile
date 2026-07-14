@@ -81,6 +81,8 @@ class VpnPlugin : Plugin() {
     }
 
     private fun launchService() {
+        // дублируем параметры в prefs, чтобы плитка/виджет/автозапуск могли поднять туннель без WebView
+        VpnPrefs.saveLaunchState(context, pendingSubUrl, pendingHwid, pendingSplitMode, pendingSplitApps)
         val i = Intent(context, MihomoVpnService::class.java)
         i.action = MihomoVpnService.ACTION_START
         i.putExtra(MihomoVpnService.EXTRA_SUB_URL, pendingSubUrl)
@@ -88,6 +90,19 @@ class VpnPlugin : Plugin() {
         i.putExtra(MihomoVpnService.EXTRA_SPLIT_MODE, pendingSplitMode)
         i.putExtra(MihomoVpnService.EXTRA_SPLIT_APPS, pendingSplitApps)
         context.startForegroundService(i)
+    }
+
+    @PluginMethod
+    fun setAutostart(call: PluginCall) {
+        VpnPrefs.setAutostart(context, call.getBoolean("on", false) ?: false)
+        call.resolve()
+    }
+
+    @PluginMethod
+    fun getAutostart(call: PluginCall) {
+        val ret = JSObject()
+        ret.put("on", VpnPrefs.isAutostart(context))
+        call.resolve(ret)
     }
 
     @PluginMethod

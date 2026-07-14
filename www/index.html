@@ -167,7 +167,8 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
     <div class="sec-sub" id="ver-sub">MISETANIBOX</div>
     <div class="row"><div class="grow"><div class="t">Режим TUN</div><div class="s">ПОЛНЫЙ ПЕРЕХВАТ ТРАФИКА</div></div><button class="toggle on" onclick="this.classList.toggle('on')"></button></div>
     <div class="row" onclick="go('apps')"><div class="grow"><div class="t">Раздельный туннель</div><div class="s" id="split-sub">ПО ПРИЛОЖЕНИЯМ · ВЫКЛ</div></div><span class="chev">›</span></div>
-    <div class="row"><div class="grow"><div class="t">Автозапуск</div><div class="s">ПРИ ВКЛЮЧЕНИИ УСТРОЙСТВА</div></div><button class="toggle" onclick="this.classList.toggle('on')"></button></div>
+    <div class="row"><div class="grow"><div class="t">Автозапуск</div><div class="s">ПОДНЯТЬ ТУННЕЛЬ ПРИ ВКЛЮЧЕНИИ УСТРОЙСТВА</div></div><button class="toggle" id="tgl-autostart" onclick="toggleAutostart(this)"></button></div>
+    <div class="list-note" style="padding:10px 4px 0">Плитка в шторке и виджет на рабочем столе включают VPN одним тапом — добавь их через системное меню.</div>
     <div class="row"><div class="grow"><div class="t">Тема</div><div class="s">ТЁМНАЯ / СВЕТЛАЯ</div></div><span class="chev" onclick="toggleTheme()">◐</span></div>
     <div class="row"><div class="grow"><div class="t">О приложении</div><div class="s">ВЕРСИЯ · ЛИЦЕНЗИЯ · АВТОРЫ</div></div><span class="chev">›</span></div>
   </div>
@@ -274,7 +275,7 @@ async function loadRules(){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'android-v0.4.2';
+const BUILD = 'android-v0.4.3';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
@@ -553,6 +554,18 @@ async function cycleMode(){
   toast('Режим: '+next.l);
 }
 
+// ---------- автозапуск (нативный prefs) ----------
+async function initAutostart(){
+  const b=document.getElementById('tgl-autostart'); if(!b||!Vpn||!Vpn.getAutostart) return;
+  try{ const r=await Vpn.getAutostart(); b.classList.toggle('on', !!(r&&r.on)); }catch(e){}
+}
+async function toggleAutostart(btn){
+  const on=!btn.classList.contains('on');
+  btn.classList.toggle('on',on);
+  if(Vpn&&Vpn.setAutostart){ try{ await Vpn.setAutostart({on}); }catch(e){ dbg('setAutostart err: '+e); } }
+  toast(on?'Автозапуск включён':'Автозапуск выключен');
+}
+
 // ---------- раздельный туннель по приложениям ----------
 let appsCache=null; // [{package,label}]
 const splitSelected=new Set(JSON.parse(localStorage.getItem('mise_splitApps')||'[]'));
@@ -679,6 +692,7 @@ function toggleTheme(){
 applyTheme();
 applyModeLabel();
 refreshSplitSub();
+initAutostart();
 renderSubs();
 setUiConnected(false);
 // стартовая диагностика окружения
