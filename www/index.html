@@ -26,7 +26,12 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
 .head{display:flex;align-items:center;justify-content:space-between;padding:10px 24px 0;flex:none}
 .brand{display:flex;align-items:center;gap:9px}
 .brand img{width:22px;height:22px;border-radius:6px;border:1px solid var(--ln)}
+.brand-col{display:flex;flex-direction:column;gap:2px;line-height:1}
 .brand span{font-weight:700;font-size:12px;letter-spacing:.24em}
+.brand-face{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0;color:var(--mut);transition:color .25s}
+.brand-face.online{color:var(--ok)}
+.brand-face.pop{animation:face-pop .55s cubic-bezier(.34,1.56,.64,1)}
+@keyframes face-pop{0%{transform:scale(.6);opacity:.4}50%{transform:scale(1.3)}100%{transform:scale(1)}}
 .head-r{display:flex;align-items:center;gap:14px}
 .icon-btn{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border:1px solid var(--ln);border-radius:var(--rad);font-size:13px;color:var(--dim);background:none;cursor:pointer}
 .view{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
@@ -94,7 +99,7 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
 <body>
 <div class="app">
   <div class="head">
-    <div class="brand"><img src="logo.png" alt=""><span>MISETANIBOX</span></div>
+    <div class="brand"><img src="logo.png" alt=""><span class="brand-col"><span>MISETANIBOX</span><span class="brand-face" id="brand-face">(-_-)</span></span></div>
     <div class="head-r"><button class="icon-btn" onclick="toggleTheme()">◐</button></div>
   </div>
 
@@ -241,7 +246,7 @@ async function loadRules(){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'android-v0.3.11';
+const BUILD = 'android-v0.4.0';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
@@ -280,10 +285,29 @@ function getHwid(){
 }
 function getSubUrl(){ return localStorage.getItem('mise_subUrl') || ''; }
 
+// ---------- каомодзи-мордочка под брендом ----------
+const FACE_HAPPY=['\\(^o^)/','(^q^)','ᕕ( ᐛ )ᕗ','(๑˃ᴗ˂)','(≧▽≦)','(・‿・)'];
+const FACE_SLEEP=['(-_-)zzz','(￣ω￣)','(._.)','(≖_≖)'];
+const rndFace=a=>a[Math.floor(Math.random()*a.length)];
+let faceBase='(-_-)';
+function setFace(on){
+  const el=document.getElementById('brand-face'); if(!el) return;
+  faceBase = on ? rndFace(FACE_HAPPY) : rndFace(FACE_SLEEP);
+  el.textContent=faceBase; el.classList.toggle('online',on);
+  if(on){ el.classList.add('pop'); setTimeout(()=>el.classList.remove('pop'),550); }
+}
+function blinkFace(){
+  const el=document.getElementById('brand-face'); if(!el||document.hidden) return;
+  el.textContent = connected ? '(^_^)' : '(-‸-)';
+  setTimeout(()=>{ el.textContent=faceBase; },150);
+}
+setInterval(blinkFace,5200);
+
 let connected=false, sessStart=0, sessTimer=null;
 const delays={}; // имя ноды -> пинг
 function setUiConnected(on){
   connected=on;
+  setFace(on);
   const big=document.getElementById('connect-big');
   const sv=document.getElementById('status-val');
   if(on){
