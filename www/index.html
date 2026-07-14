@@ -94,6 +94,18 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
 .list-note{padding:20px 24px;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.06em;color:var(--mut);line-height:1.7}
 .dbg{margin:12px 24px 0;padding:10px 12px;border:1px solid var(--ln);border-radius:var(--rad);font-family:'JetBrains Mono',monospace;font-size:9.5px;line-height:1.5;color:var(--dim);white-space:pre-wrap;word-break:break-word;max-height:120px;overflow:auto;display:none}
 .dbg.on{display:block}
+.back-row{display:flex;align-items:center;gap:10px;cursor:pointer;margin-bottom:4px}
+.back-row .bk{font-size:22px;line-height:1;color:var(--mut)}
+.apps-search{width:100%;margin:14px 0 6px;padding:12px 14px;background:transparent;border:1px solid var(--ln);border-radius:var(--rad);color:var(--fg);font-family:'JetBrains Mono',monospace;font-size:13px}
+.apps-search:focus{outline:none;border-color:var(--fg)}
+.app-row{display:flex;align-items:center;gap:13px;padding:12px 4px;border-bottom:1px solid var(--ln);cursor:pointer}
+.app-mono{width:34px;height:34px;flex:none;border-radius:9px;background:var(--ln);color:var(--fg);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;text-transform:uppercase}
+.app-row .grow{min-width:0}
+.app-row .t{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.app-row .s{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.04em;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chk{width:24px;height:24px;flex:none;border:1px solid var(--ln);border-radius:7px;display:flex;align-items:center;justify-content:center;color:transparent;font-size:15px;font-weight:900}
+.chk.on{background:var(--fg);border-color:var(--fg);color:var(--bg)}
+.split-off .app-list{opacity:.4;pointer-events:none}
 </style>
 </head>
 <body>
@@ -154,9 +166,24 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
     <div class="sec-title">Настройки</div>
     <div class="sec-sub" id="ver-sub">MISETANIBOX</div>
     <div class="row"><div class="grow"><div class="t">Режим TUN</div><div class="s">ПОЛНЫЙ ПЕРЕХВАТ ТРАФИКА</div></div><button class="toggle on" onclick="this.classList.toggle('on')"></button></div>
+    <div class="row" onclick="go('apps')"><div class="grow"><div class="t">Раздельный туннель</div><div class="s" id="split-sub">ПО ПРИЛОЖЕНИЯМ · ВЫКЛ</div></div><span class="chev">›</span></div>
     <div class="row"><div class="grow"><div class="t">Автозапуск</div><div class="s">ПРИ ВКЛЮЧЕНИИ УСТРОЙСТВА</div></div><button class="toggle" onclick="this.classList.toggle('on')"></button></div>
     <div class="row"><div class="grow"><div class="t">Тема</div><div class="s">ТЁМНАЯ / СВЕТЛАЯ</div></div><span class="chev" onclick="toggleTheme()">◐</span></div>
     <div class="row"><div class="grow"><div class="t">О приложении</div><div class="s">ВЕРСИЯ · ЛИЦЕНЗИЯ · АВТОРЫ</div></div><span class="chev">›</span></div>
+  </div>
+
+  <!-- РАЗДЕЛЬНЫЙ ТУННЕЛЬ ПО ПРИЛОЖЕНИЯМ -->
+  <div class="view hidden" id="view-apps">
+    <div class="back-row" onclick="go('settings')"><span class="bk">‹</span><div class="sec-title" style="margin:0">Раздельный туннель</div></div>
+    <div class="sec-sub">КАКИЕ ПРИЛОЖЕНИЯ ИДУТ ЧЕРЕЗ VPN</div>
+    <div class="sub-seg" style="margin-top:14px">
+      <button class="sub-seg-btn" id="split-off" onclick="setSplitMode('off')">Все через VPN</button>
+      <button class="sub-seg-btn" id="split-bypass" onclick="setSplitMode('bypass')">Мимо VPN</button>
+      <button class="sub-seg-btn" id="split-only" onclick="setSplitMode('only')">Только VPN</button>
+    </div>
+    <div class="list-note" id="split-hint" style="padding:12px 4px">Весь трафик идёт через VPN.</div>
+    <input id="apps-search" class="apps-search" type="text" placeholder="Поиск приложения…" autocapitalize="off" autocorrect="off" spellcheck="false" oninput="renderAppList()">
+    <div class="app-list" id="app-list"><div class="list-note">Загрузка списка приложений…</div></div>
   </div>
 
   <div class="sub-modal hidden" id="sub-modal" onclick="if(event.target===this)closeSubModal()">
@@ -232,6 +259,7 @@ function go(t){
   for(const b of document.querySelectorAll('.nav button')) b.classList.toggle('active', b.dataset.tab===t);
   if(t==='servers'){ connected ? loadProxies() : previewServers(); }
   if(t==='rules') loadRules();
+  if(t==='apps') openAppsScreen();
 }
 async function loadRules(){
   const sub=document.getElementById('rules-sub'), list=document.getElementById('rules-list');
@@ -246,7 +274,7 @@ async function loadRules(){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'android-v0.4.1';
+const BUILD = 'android-v0.4.2';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
@@ -342,7 +370,10 @@ async function toggleConnect(){
   const sub=getSubUrl();
   if(!sub){ toast('Сначала добавьте подписку'); go('subs'); openSubModal(); return; }
   setStatusText('◌ ПОДКЛЮЧЕНИЕ…'); dbg('Vpn.start(sub='+sub.substr(0,28)+'…)');
-  try{ const r=await Vpn.start({ subUrl: sub, hwid: getHwid() }); dbg('start() вернул: '+JSON.stringify(r||{})); }
+  const sm=splitMode();
+  const sApps=sm==='off'?[]:[...splitSelected];
+  dbg('split='+sm+' apps='+sApps.length);
+  try{ const r=await Vpn.start({ subUrl: sub, hwid: getHwid(), splitMode: sm, splitApps: sApps }); dbg('start() вернул: '+JSON.stringify(r||{})); }
   catch(e){ setStatusText('○ ОТКЛЮЧЕНО'); dbg('start() REJECT: '+(e&&e.message?e.message:e)); toast('Ошибка старта: '+(e&&e.message?e.message:e)); }
 }
 
@@ -522,6 +553,68 @@ async function cycleMode(){
   toast('Режим: '+next.l);
 }
 
+// ---------- раздельный туннель по приложениям ----------
+let appsCache=null; // [{package,label}]
+const splitSelected=new Set(JSON.parse(localStorage.getItem('mise_splitApps')||'[]'));
+function splitMode(){ return localStorage.getItem('mise_splitMode')||'off'; }
+const SPLIT_HINTS={
+  off:'Весь трафик идёт через VPN.',
+  bypass:'Отмеченные приложения идут МИМО VPN (напрямую), остальное — через VPN.',
+  only:'Через VPN идут ТОЛЬКО отмеченные приложения, остальное — напрямую.'
+};
+function splitModeLabel(){ return {off:'ВЫКЛ',bypass:'МИМО VPN',only:'ТОЛЬКО VPN'}[splitMode()]||'ВЫКЛ'; }
+function refreshSplitSub(){ const el=document.getElementById('split-sub'); if(el) el.textContent='ПО ПРИЛОЖЕНИЯМ · '+splitModeLabel(); }
+function applySplitModeUi(){
+  const m=splitMode();
+  for(const k of ['off','bypass','only']) document.getElementById('split-'+k).classList.toggle('active',k===m);
+  const h=document.getElementById('split-hint'); if(h) h.textContent=SPLIT_HINTS[m];
+  document.getElementById('view-apps').classList.toggle('split-off', m==='off');
+  refreshSplitSub();
+}
+function setSplitMode(m){
+  localStorage.setItem('mise_splitMode',m); applySplitModeUi();
+  if(m!=='off' && !appsCache) loadAppList();
+  if(connected) toast('Применится при следующем подключении');
+}
+async function openAppsScreen(){
+  applySplitModeUi();
+  if(!appsCache) await loadAppList(); else renderAppList();
+}
+async function loadAppList(){
+  const list=document.getElementById('app-list');
+  if(!Vpn || !Vpn.listApps){ list.innerHTML='<div class="list-note">Список приложений доступен только в приложении на устройстве.</div>'; return; }
+  list.innerHTML='<div class="list-note">Загрузка списка приложений…</div>';
+  try{
+    const r=await Vpn.listApps();
+    appsCache=(r&&r.apps?r.apps:[]).slice().sort((a,b)=>(a.label||'').localeCompare(b.label||'',undefined,{sensitivity:'base'}));
+  }catch(e){ appsCache=[]; dbg('listApps err: '+e); }
+  renderAppList();
+}
+function renderAppList(){
+  const list=document.getElementById('app-list'); if(!list) return;
+  if(!appsCache){ return; }
+  if(!appsCache.length){ list.innerHTML='<div class="list-note">Не удалось получить список приложений.</div>'; return; }
+  const q=(document.getElementById('apps-search').value||'').trim().toLowerCase();
+  // выбранные — наверх, затем по алфавиту
+  const items=appsCache.filter(a=>!q || (a.label||'').toLowerCase().includes(q) || (a.package||'').toLowerCase().includes(q))
+    .sort((a,b)=>{ const sa=splitSelected.has(a.package)?0:1, sb=splitSelected.has(b.package)?0:1; return sa-sb || (a.label||'').localeCompare(b.label||'',undefined,{sensitivity:'base'}); });
+  if(!items.length){ list.innerHTML='<div class="list-note">Ничего не найдено.</div>'; return; }
+  list.innerHTML=items.map(a=>{
+    const on=splitSelected.has(a.package);
+    const mono=(a.label||a.package||'?').trim().charAt(0);
+    return `<div class="app-row" onclick="toggleApp('${a.package.replace(/'/g,"\\'")}')">
+      <div class="app-mono">${mono.replace(/</g,'&lt;')}</div>
+      <div class="grow"><div class="t">${(a.label||a.package).replace(/</g,'&lt;')}</div><div class="s">${a.package.replace(/</g,'&lt;')}</div></div>
+      <div class="chk${on?' on':''}">✓</div></div>`;
+  }).join('');
+}
+function toggleApp(pkg){
+  if(splitSelected.has(pkg)) splitSelected.delete(pkg); else splitSelected.add(pkg);
+  localStorage.setItem('mise_splitApps', JSON.stringify([...splitSelected]));
+  renderAppList(); refreshSplitSub();
+  if(connected) toast('Применится при следующем подключении');
+}
+
 // ---------- подписка: URL / DNS TXT ----------
 let subMode='url';
 function setSubMode(m){
@@ -585,6 +678,7 @@ function toggleTheme(){
 
 applyTheme();
 applyModeLabel();
+refreshSplitSub();
 renderSubs();
 setUiConnected(false);
 // стартовая диагностика окружения
