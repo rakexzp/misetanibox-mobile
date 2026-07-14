@@ -23,6 +23,8 @@ class MihomoVpnService : VpnService() {
         const val ACTION_STOP = "network.geodema.misetanibox.STOP"
         const val EXTRA_SUB_URL = "sub_url"
         const val EXTRA_HWID = "hwid"
+        const val EXTRA_SPLIT_MODE = "split_mode"
+        const val EXTRA_SPLIT_APPS = "split_apps"
         const val CHANNEL_ID = "misetanibox_vpn"
         const val NOTIF_ID = 7
 
@@ -39,13 +41,15 @@ class MihomoVpnService : VpnService() {
             else -> {
                 val subUrl = intent?.getStringExtra(EXTRA_SUB_URL) ?: ""
                 val hwid = intent?.getStringExtra(EXTRA_HWID) ?: ""
-                startTunnel(subUrl, hwid)
+                val splitMode = intent?.getStringExtra(EXTRA_SPLIT_MODE) ?: "off"
+                val splitApps = intent?.getStringArrayExtra(EXTRA_SPLIT_APPS) ?: arrayOf()
+                startTunnel(subUrl, hwid, splitMode, splitApps)
             }
         }
         return START_STICKY
     }
 
-    private fun startTunnel(subUrl: String, hwid: String) {
+    private fun startTunnel(subUrl: String, hwid: String, splitMode: String, splitApps: Array<String>) {
         if (running) return
         try {
             val builder = Builder()
@@ -55,8 +59,8 @@ class MihomoVpnService : VpnService() {
                 .addRoute("0.0.0.0", 0)
                 .addDnsServer("172.19.0.2")
                 .setBlocking(false)
-            // не заворачиваем собственный трафик приложения в туннель
-            try { builder.addDisallowedApplication(packageName) } catch (_: Exception) {}
+            // раздельное туннелирование по приложениям (см. applySplitTunnel)
+            applySplitTunnel(builder, splitMode, splitApps)
 
             val pfd = builder.establish() ?: run {
                 broadcast("error", "establish() вернул null — нет разрешения VPN или активен другой VPN")
@@ -86,6 +90,37 @@ class MihomoVpnService : VpnService() {
         } catch (e: Exception) {
             broadcast("error", e.message ?: "неизвестная ошибка запуска")
             stopTunnel()
+        }
+    }
+
+    // Раздельное туннелирование. В Android addAllowedApplication и addDisallowedApplication
+    // взаимоисключающие — нельзя смешивать в одном Builder, поэтому режимы разведены.
+    //  off    — весь трафик в туннель, кроме самого приложения (обычный режим);
+    //  bypass — выбранные приложения идут МИМО VPN (напрямую), остальное в туннель;
+    //  only   — в туннель идут ТОЛЬКО выбранные приложения, остальное напрямую.
+    // Собственное приложение всегда вне туннеля (иначе петля fetch/ядро через TUN):
+    //  в off/bypass — через addDisallowedApplication, в only — оно просто не в allowed-списке.
+    private fun applySplitTunnel(builder: Builder, mode: String, apps: Array<String>) {
+        when (mode) {
+            "only" -> {
+                var added = 0
+                for (p in apps) {
+                    try { builder.addAllowedApplication(p); added++ } catch (_: Exception) {}
+                }
+                // пустой/битый список в режиме «только» = мёртвый туннель → откатываемся к обычному
+                if (added == 0) {
+                    try { builder.addDisallowedApplication(packageName) } catch (_: Exception) {}
+                }
+            }
+            "bypass" -> {
+                for (p in apps) {
+                    try { builder.addDisallowedApplication(p) } catch (_: Exception) {}
+                }
+                try { builder.addDisallowedApplication(packageName) } catch (_: Exception) {}
+            }
+            else -> {
+                try { builder.addDisallowedApplication(packageName) } catch (_: Exception) {}
+            }
         }
     }
 

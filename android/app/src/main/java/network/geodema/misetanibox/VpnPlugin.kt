@@ -20,6 +20,8 @@ class VpnPlugin : Plugin() {
 
     private var pendingSubUrl = ""
     private var pendingHwid = ""
+    private var pendingSplitMode = "off"
+    private var pendingSplitApps = arrayOf<String>()
     private var receiver: BroadcastReceiver? = null
 
     override fun load() {
@@ -48,6 +50,13 @@ class VpnPlugin : Plugin() {
     fun start(call: PluginCall) {
         pendingSubUrl = call.getString("subUrl") ?: ""
         pendingHwid = call.getString("hwid") ?: ""
+        pendingSplitMode = call.getString("splitMode") ?: "off"
+        val appsArr = call.getArray("splitApps", com.getcapacitor.JSArray())
+        val appsList = ArrayList<String>()
+        for (i in 0 until (appsArr?.length() ?: 0)) {
+            appsArr?.optString(i)?.let { if (it.isNotEmpty()) appsList.add(it) }
+        }
+        pendingSplitApps = appsList.toTypedArray()
         if (pendingSubUrl.isEmpty()) {
             call.reject("нет URL подписки")
             return
@@ -76,6 +85,8 @@ class VpnPlugin : Plugin() {
         i.action = MihomoVpnService.ACTION_START
         i.putExtra(MihomoVpnService.EXTRA_SUB_URL, pendingSubUrl)
         i.putExtra(MihomoVpnService.EXTRA_HWID, pendingHwid)
+        i.putExtra(MihomoVpnService.EXTRA_SPLIT_MODE, pendingSplitMode)
+        i.putExtra(MihomoVpnService.EXTRA_SPLIT_APPS, pendingSplitApps)
         context.startForegroundService(i)
     }
 
@@ -92,6 +103,35 @@ class VpnPlugin : Plugin() {
         val ret = JSObject()
         ret.put("running", MihomoVpnService.isRunning)
         call.resolve(ret)
+    }
+
+    // Список установленных приложений с иконкой запуска (для раздельного туннелирования).
+    // Берём только приложения с LAUNCHER-активностью (пользовательские), своё исключаем.
+    @PluginMethod
+    fun listApps(call: PluginCall) {
+        Thread {
+            val ret = JSObject()
+            val arr = com.getcapacitor.JSArray()
+            try {
+                val pm = context.packageManager
+                val self = context.packageName
+                val q = Intent(Intent.ACTION_MAIN, null).addCategory(Intent.CATEGORY_LAUNCHER)
+                val resolved = pm.queryIntentActivities(q, 0)
+                val seen = HashSet<String>()
+                for (ri in resolved) {
+                    val pkg = ri.activityInfo?.packageName ?: continue
+                    if (pkg == self) continue
+                    if (!seen.add(pkg)) continue
+                    val label = ri.loadLabel(pm)?.toString() ?: pkg
+                    val o = JSObject()
+                    o.put("package", pkg)
+                    o.put("label", label)
+                    arr.put(o)
+                }
+            } catch (_: Exception) {}
+            ret.put("apps", arr)
+            call.resolve(ret)
+        }.start()
     }
 
     // Скачать подписку (для превью серверов до подключения) через нативный HTTP,
