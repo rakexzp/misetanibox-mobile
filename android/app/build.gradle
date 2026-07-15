@@ -17,10 +17,28 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Release-подпись: keystore НЕ в репозитории, приходит из ENV (в CI — из GitHub Secrets).
+    // Без ENV (локальная сборка) signingConfig не применяется → assembleDebug работает как прежде.
+    signingConfigs {
+        release {
+            def ksFile = System.getenv("ANDROID_KEYSTORE_FILE")
+            if (ksFile != null && !ksFile.isEmpty()) {
+                storeFile file(ksFile)
+                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("ANDROID_KEY_ALIAS")
+                // PKCS12: пароль ключа == пароль хранилища
+                keyPassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                storeType "PKCS12"
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (System.getenv("ANDROID_KEYSTORE_FILE")) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

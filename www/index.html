@@ -276,7 +276,7 @@ async function loadRules(){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'android-v0.4.5';
+const BUILD = 'android-v0.4.6';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
