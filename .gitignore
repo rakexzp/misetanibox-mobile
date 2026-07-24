@@ -1,0 +1,21 @@
+# Android / Gradle
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/app/libs/*.aar
+*.apk
+*.aab
+
+# подпись — только в GitHub Secrets, никогда в репозиторий
+*.p12
+*.jks
+*.keystore
+keystore.properties
+
+# Node
+node_modules/
+www/capacitor.js
+
+# Go
+core/mihomo.aar

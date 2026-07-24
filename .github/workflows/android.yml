@@ -1,0 +1,98 @@
+name: Android Build
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK + NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK
+        run: |
+          sdkmanager "ndk;26.1.10909125"
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/26.1.10909125" >> $GITHUB_ENV
+
+      - name: Install gomobile
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          go install golang.org/x/mobile/cmd/gobind@latest
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
+      - name: gomobile init
+        run: gomobile init
+
+      - name: Build mihomo core .aar
+        working-directory: core
+        run: |
+          go mod download
+          # target включает amd64 (x86_64-эмуляторы), ldflags выравнивает .so под 16 КБ
+          # страницы (Android 15 / 16 KB page size), иначе либа не грузится на новых образах.
+          # -tags with_gvisor ОБЯЗАТЕЛЕН: без него sing-tun подставляет заглушку,
+          # TUN не поднимается и трафик молча уходит в никуда.
+          gomobile bind -v \
+            -target=android/arm64,android/arm,android/amd64 \
+            -androidapi 21 \
+            -tags with_gvisor \
+            -ldflags="-extldflags=-Wl,-z,max-page-size=16384" \
+            -o mihomo.aar .
+          mkdir -p ../android/app/libs
+          cp mihomo.aar ../android/app/libs/mihomo.aar
+
+      - name: Sync web assets + native plugin config into android project
+        working-directory: .
+        run: |
+          npm install
+          cp node_modules/@capacitor/core/dist/capacitor.js www/capacitor.js
+          npx cap sync android
+
+      - name: Decode release keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/misetanibox-release.p12"
+
+      - name: Build release APK (signed)
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_FILE: ${{ runner.temp }}/misetanibox-release.p12
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Rename APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk Misetanibox_android.apk
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Misetanibox_android
+          path: Misetanibox_android.apk
+          retention-days: 14

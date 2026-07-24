@@ -7,6 +7,7 @@ import (
 	C "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/hub"
 	"github.com/metacubex/mihomo/hub/executor"
+	tun "github.com/metacubex/sing-tun"
 )
 
 // SocketProtector реализуется на стороне Kotlin (VpnService.protect).
@@ -32,6 +33,13 @@ func SetProtect(p SocketProtector) {
 // Start применяет YAML-конфиг подписки и заводит TUN на переданном fd
 // (fd — от Android VpnService.establish()). Возвращает "" при успехе или текст ошибки.
 func Start(homeDir, configYAML string, fd int) string {
+	// Стек gvisor компилируется только с -tags with_gvisor. Без тега sing-tun подставляет
+	// заглушку: TUN не поднимается, а hub.ApplyConfig ошибку не возвращает — приложение
+	// думает, что подключилось, при этом трафик уходит в никуда. Проверяем явно.
+	if !tun.WithGVisor {
+		return "ядро собрано без поддержки TUN (нужен -tags with_gvisor)"
+	}
+
 	C.SetHomeDir(homeDir)
 	cfg, err := executor.ParseWithBytes([]byte(configYAML))
 	if err != nil {
