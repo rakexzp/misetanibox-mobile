@@ -349,7 +349,7 @@ function go(t){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'v0.7.0';
+const BUILD = 'v0.8.0';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
@@ -881,12 +881,14 @@ function startTraffic(){
   if(trafTimer) return;
   trafTimer=setInterval(async()=>{
     if(!connected) return;
+    // /connections отдаёт весь список соединений — не дёргаем его, пока экран не виден
+    if(document.hidden) return;
     const r=await core('GET','/connections');
     if(r.ok && r.data){
       totalUp=r.data.uploadTotal||0; totalDown=r.data.downloadTotal||0;
       const el=document.getElementById('sess-data'); if(el) el.textContent=fmtBytes(totalUp+totalDown);
     }
-  }, 2000);
+  }, 3000);
 }
 function stopTraffic(){ clearInterval(trafTimer); trafTimer=null; const el=document.getElementById('sess-data'); if(el) el.textContent='0 Б'; }
 
