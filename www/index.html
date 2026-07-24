@@ -106,6 +106,14 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
 .chk{width:24px;height:24px;flex:none;border:1px solid var(--ln);border-radius:7px;display:flex;align-items:center;justify-content:center;color:transparent;font-size:15px;font-weight:900}
 .chk.on{background:var(--fg);border-color:var(--fg);color:var(--bg)}
 .split-off .app-list{opacity:.4;pointer-events:none}
+.accent-row{display:flex;gap:10px;flex-wrap:wrap}
+.accent-dot{width:30px;height:30px;border-radius:50%;border:2px solid transparent;cursor:pointer;flex:none}
+.accent-dot.on{border-color:var(--fg)}
+.chain-nodes{max-height:230px;overflow-y:auto;margin-top:6px;border:1px solid var(--ln);border-radius:var(--rad)}
+.chain-node{display:flex;align-items:center;gap:10px;padding:11px 12px;border-bottom:1px solid var(--ln);cursor:pointer}
+.chain-node.on{background:var(--ln)}
+.chain-node .t{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rule-line{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim)}
 </style>
 </head>
 <body>
@@ -157,8 +165,31 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
   <!-- ПРАВИЛА -->
   <div class="view hidden" id="view-rules">
     <div class="sec-title">Правила</div>
-    <div class="sec-sub" id="rules-sub">НЕ ПОДКЛЮЧЕНО</div>
+    <div class="sec-sub">КУДА ПУСКАТЬ ТРАФИК</div>
+
+    <div class="row"><div class="grow"><div class="t">Российские сайты напрямую</div><div class="s">RU-АДРЕСА МИМО VPN</div></div>
+      <button class="toggle" id="pr-ru" onclick="togglePreset('ru', this)"></button></div>
+    <div class="row"><div class="grow"><div class="t">Блокировать рекламу</div><div class="s">РЕКЛАМА И ТРЕКЕРЫ</div></div>
+      <button class="toggle" id="pr-ads" onclick="togglePreset('ads', this)"></button></div>
+    <div class="row"><div class="grow"><div class="t">Локальная сеть напрямую</div><div class="s">РОУТЕР, ПРИНТЕРЫ, NAS</div></div>
+      <button class="toggle" id="pr-lan" onclick="togglePreset('lan', this)"></button></div>
+
+    <div class="sec-title" style="font-size:22px;padding-top:22px">Свои правила</div>
+    <div class="sec-sub" id="rules-count">НЕТ СВОИХ ПРАВИЛ</div>
     <div id="rules-list"></div>
+    <div class="row" style="color:var(--dim)" onclick="openRuleModal()"><div class="grow"><div class="t">+ Добавить правило</div><div class="s">ДОМЕН ИЛИ IP → КУДА</div></div></div>
+
+    <div class="list-note">Правила применяются при следующем подключении. Порядок: свои правила сверху, затем пресеты, в конце — всё остальное через VPN.</div>
+  </div>
+
+
+  <!-- ЦЕПОЧКИ -->
+  <div class="view hidden" id="view-chains">
+    <div class="back-row" onclick="go('settings')"><span class="bk">‹</span><div class="sec-title" style="margin:0">Цепочки</div></div>
+    <div class="sec-sub">ТРАФИК ЧЕРЕЗ ДВА СЕРВЕРА ПОДРЯД</div>
+    <div id="chain-list"></div>
+    <div class="row" style="color:var(--dim)" onclick="openChainModal()"><div class="grow"><div class="t">+ Создать цепочку</div><div class="s">ВЫБЕРИ ВХОДНОЙ СЕРВЕР</div></div></div>
+    <div class="list-note">Цепочка появится в списке серверов как «🔗 имя» — выбери её, а внутри укажи выходной сервер. Применяется при следующем подключении.</div>
   </div>
 
   <!-- НАСТРОЙКИ -->
@@ -167,9 +198,14 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
     <div class="sec-sub" id="ver-sub">MISETANIBOX</div>
     <div class="row"><div class="grow"><div class="t">Режим TUN</div><div class="s">ПОЛНЫЙ ПЕРЕХВАТ ТРАФИКА</div></div><button class="toggle on" onclick="this.classList.toggle('on')"></button></div>
     <div class="row" onclick="go('apps')"><div class="grow"><div class="t">Раздельный туннель</div><div class="s" id="split-sub">ПО ПРИЛОЖЕНИЯМ · ВЫКЛ</div></div><span class="chev">›</span></div>
+    <div class="row" onclick="go('chains')"><div class="grow"><div class="t">Цепочки</div><div class="s" id="chains-sub">НЕТ ЦЕПОЧЕК</div></div><span class="chev">›</span></div>
     <div class="row"><div class="grow"><div class="t">Автозапуск</div><div class="s">ПОДНЯТЬ ТУННЕЛЬ ПРИ ВКЛЮЧЕНИИ УСТРОЙСТВА</div></div><button class="toggle" id="tgl-autostart" onclick="toggleAutostart(this)"></button></div>
     <div class="list-note" style="padding:10px 4px 0">Плитка в шторке и виджет на рабочем столе включают VPN одним тапом — добавь их через системное меню.</div>
     <div class="row"><div class="grow"><div class="t">Тема</div><div class="s">ТЁМНАЯ / СВЕТЛАЯ</div></div><span class="chev" onclick="toggleTheme()">◐</span></div>
+    <div class="row" style="display:block">
+      <div class="grow" style="margin-bottom:12px"><div class="t">Оформление</div><div class="s">ЦВЕТ АКЦЕНТА</div></div>
+      <div class="accent-row" id="accent-row"></div>
+    </div>
     <div class="row" onclick="showAbout()"><div class="grow"><div class="t">О приложении</div><div class="s">ВЕРСИЯ · ЛИЦЕНЗИЯ · АВТОРЫ</div></div><span class="chev">›</span></div>
     <div class="list-note" id="about-note">Misetanibox · ядро mihomo (MetaCubeX). Android-версия — вклад @14Unight (плитка, виджет, автозапуск).</div>
   </div>
@@ -200,6 +236,45 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
       <div class="sub-modal-btns">
         <button class="sub-btn ghost" onclick="closeSubModal()">Отмена</button>
         <button class="sub-btn primary" onclick="saveSubModal()">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="sub-modal hidden" id="rule-modal" onclick="if(event.target===this)closeRuleModal()">
+    <div class="sub-modal-card">
+      <div class="sub-modal-title">Своё правило</div>
+      <div class="sub-modal-hint">Что перехватываем</div>
+      <div class="sub-seg" style="flex-wrap:wrap">
+        <button class="sub-seg-btn active" data-rt="DOMAIN-SUFFIX" onclick="setRuleType(this)">Домен</button>
+        <button class="sub-seg-btn" data-rt="DOMAIN-KEYWORD" onclick="setRuleType(this)">Слово</button>
+        <button class="sub-seg-btn" data-rt="IP-CIDR" onclick="setRuleType(this)">IP</button>
+        <button class="sub-seg-btn" data-rt="PROCESS-NAME" onclick="setRuleType(this)">Приложение</button>
+      </div>
+      <input id="rule-value" class="sub-input" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="например: example.com">
+      <div class="sub-modal-hint">Куда направить</div>
+      <div class="sub-seg">
+        <button class="sub-seg-btn active" data-rtg="PROXY" onclick="setRuleTarget(this)">Через VPN</button>
+        <button class="sub-seg-btn" data-rtg="DIRECT" onclick="setRuleTarget(this)">Мимо VPN</button>
+        <button class="sub-seg-btn" data-rtg="REJECT" onclick="setRuleTarget(this)">Блокировать</button>
+      </div>
+      <div class="sub-modal-btns">
+        <button class="sub-btn ghost" onclick="closeRuleModal()">Отмена</button>
+        <button class="sub-btn primary" onclick="saveRule()">Добавить</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="sub-modal hidden" id="chain-modal" onclick="if(event.target===this)closeChainModal()">
+    <div class="sub-modal-card">
+      <div class="sub-modal-title">Цепочка</div>
+      <input id="chain-name" class="sub-input" type="text" maxlength="24" placeholder="Название (напр. NL → DE)">
+      <div class="sub-modal-hint">Входной сервер — через него пойдёт цепочка</div>
+      <input id="chain-search" class="apps-search" type="text" placeholder="Поиск сервера…" autocapitalize="off" oninput="renderChainNodes()">
+      <div id="chain-nodes" class="chain-nodes"></div>
+      <div class="sub-modal-btns">
+        <button class="sub-btn ghost" onclick="closeChainModal()">Отмена</button>
+        <button class="sub-btn primary" onclick="saveChain()">Создать</button>
       </div>
     </div>
   </div>
@@ -260,23 +335,13 @@ function go(t){
   document.getElementById('view-'+t).classList.remove('hidden');
   for(const b of document.querySelectorAll('.nav button')) b.classList.toggle('active', b.dataset.tab===t);
   if(t==='servers'){ connected ? loadProxies() : previewServers(); }
-  if(t==='rules') loadRules();
+  if(t==='rules'){ applyPresetUi(); renderRules(); }
+  if(t==='chains') renderChains();
   if(t==='apps') openAppsScreen();
-}
-async function loadRules(){
-  const sub=document.getElementById('rules-sub'), list=document.getElementById('rules-list');
-  if(!connected){ sub.textContent='НЕ ПОДКЛЮЧЕНО'; list.innerHTML='<div class="list-note">Правила ядра доступны после подключения.</div>'; return; }
-  const r=await core('GET','/rules');
-  if(!r.ok||!r.data||!r.data.rules){ sub.textContent='—'; list.innerHTML='<div class="list-note">Не удалось получить правила.</div>'; return; }
-  const rules=r.data.rules;
-  sub.textContent=rules.length+' ПРАВИЛ';
-  list.innerHTML=rules.slice(0,400).map(x=>
-    `<div class="row"><div class="grow"><div class="t" style="font-size:13px">${(x.payload||'MATCH').replace(/</g,'&lt;')}</div><div class="s">${x.type} → ${x.proxy}</div></div></div>`
-  ).join('');
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'v0.5.0';
+const BUILD = 'v0.6.0';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
@@ -375,7 +440,10 @@ async function toggleConnect(){
   const sm=splitMode();
   const sApps=sm==='off'?[]:[...splitSelected];
   dbg('split='+sm+' apps='+sApps.length);
-  try{ const r=await Vpn.start({ subUrl: sub, hwid: getHwid(), splitMode: sm, splitApps: sApps }); dbg('start() вернул: '+JSON.stringify(r||{})); }
+  const rulesList = buildRuleList();
+  const chainList = chains();
+  dbg('правил='+rulesList.length+' цепочек='+chainList.length);
+  try{ const r=await Vpn.start({ subUrl: sub, hwid: getHwid(), splitMode: sm, splitApps: sApps, rules: rulesList, chains: chainList }); dbg('start() вернул: '+JSON.stringify(r||{})); }
   catch(e){ setStatusText('○ ОТКЛЮЧЕНО'); dbg('start() REJECT: '+(e&&e.message?e.message:e)); toast('Ошибка старта: '+(e&&e.message?e.message:e)); }
 }
 
@@ -558,6 +626,134 @@ async function cycleMode(){
 // ---------- о приложении ----------
 function showAbout(){ toast('Misetanibox '+BUILD+' · авторы: rakexzp, @14Unight'); }
 
+
+// ---------- ПРАВИЛА ----------
+// Пресеты разворачиваются в правила mihomo при сборке конфига.
+const RULE_PRESETS = {
+  ru:  ['GEOIP,RU,DIRECT'],
+  ads: ['GEOSITE,category-ads-all,REJECT'],
+  lan: ['GEOIP,PRIVATE,DIRECT,no-resolve'],
+};
+function presetsOn(){ try{ return JSON.parse(localStorage.getItem('mise_presets')||'["lan"]'); }catch{ return ['lan']; } }
+function customRules(){ try{ return JSON.parse(localStorage.getItem('mise_rules')||'[]'); }catch{ return []; } }
+function saveCustomRules(list){ localStorage.setItem('mise_rules', JSON.stringify(list)); }
+
+// Итоговый список правил: свои — выше пресетов, MATCH дописывает нативная часть.
+function buildRuleList(){
+  const out = [...customRules()];
+  for(const k of presetsOn()) out.push(...(RULE_PRESETS[k]||[]));
+  return out;
+}
+function applyPresetUi(){
+  const on = presetsOn();
+  for(const k of ['ru','ads','lan']){
+    const el = document.getElementById('pr-'+k);
+    if(el) el.classList.toggle('on', on.includes(k));
+  }
+}
+function togglePreset(k, btn){
+  const on = presetsOn();
+  const i = on.indexOf(k);
+  if(i>=0) on.splice(i,1); else on.push(k);
+  localStorage.setItem('mise_presets', JSON.stringify(on));
+  btn.classList.toggle('on');
+  if(connected) toast('Применится при следующем подключении');
+}
+function renderRules(){
+  const list=document.getElementById('rules-list'), cnt=document.getElementById('rules-count');
+  if(!list) return;
+  const rules=customRules();
+  if(cnt) cnt.textContent = rules.length ? rules.length+' СВОИХ ПРАВИЛ' : 'НЕТ СВОИХ ПРАВИЛ';
+  list.innerHTML = rules.map((r,i)=>`<div class="row"><div class="grow"><div class="t" style="font-size:14px">${r.split(',')[1]||''}</div><div class="rule-line">${r.replace(/</g,'&lt;')}</div></div><span class="chev" onclick="delRule(${i})">✕</span></div>`).join('');
+}
+function delRule(i){ const r=customRules(); r.splice(i,1); saveCustomRules(r); renderRules(); if(connected) toast('Применится при следующем подключении'); }
+
+let ruleType='DOMAIN-SUFFIX', ruleTarget='PROXY';
+function openRuleModal(){ ruleType='DOMAIN-SUFFIX'; ruleTarget='PROXY'; document.getElementById('rule-value').value='';
+  document.querySelectorAll('[data-rt]').forEach(b=>b.classList.toggle('active', b.dataset.rt===ruleType));
+  document.querySelectorAll('[data-rtg]').forEach(b=>b.classList.toggle('active', b.dataset.rtg===ruleTarget));
+  document.getElementById('rule-modal').classList.remove('hidden'); }
+function closeRuleModal(){ document.getElementById('rule-modal').classList.add('hidden'); }
+function setRuleType(b){ ruleType=b.dataset.rt; document.querySelectorAll('[data-rt]').forEach(x=>x.classList.toggle('active',x===b));
+  const inp=document.getElementById('rule-value');
+  inp.placeholder = ruleType==='IP-CIDR' ? 'например: 1.2.3.0/24' : (ruleType==='PROCESS-NAME' ? 'например: com.google.chrome' : 'например: example.com'); }
+function setRuleTarget(b){ ruleTarget=b.dataset.rtg; document.querySelectorAll('[data-rtg]').forEach(x=>x.classList.toggle('active',x===b)); }
+function saveRule(){
+  let v=(document.getElementById('rule-value').value||'').trim();
+  if(!v){ toast('Введите значение'); return; }
+  if(v.includes(',')){ toast('Запятые в значении недопустимы'); return; }
+  // для IP-CIDR mihomo требует маску
+  if(ruleType==='IP-CIDR' && !v.includes('/')) v += '/32';
+  let rule = `${ruleType},${v},${ruleTarget}`;
+  if(ruleType==='IP-CIDR') rule += ',no-resolve';
+  const list=customRules(); list.push(rule); saveCustomRules(list);
+  closeRuleModal(); renderRules();
+  if(connected) toast('Применится при следующем подключении');
+}
+
+// ---------- ЦЕПОЧКИ ----------
+function chains(){ try{ return JSON.parse(localStorage.getItem('mise_chains')||'[]'); }catch{ return []; } }
+function saveChains(list){ localStorage.setItem('mise_chains', JSON.stringify(list)); refreshChainsSub(); }
+function refreshChainsSub(){
+  const el=document.getElementById('chains-sub'); if(!el) return;
+  const n=chains().length; el.textContent = n ? n+' ЦЕПОЧЕК' : 'НЕТ ЦЕПОЧЕК';
+}
+function renderChains(){
+  const list=document.getElementById('chain-list'); if(!list) return;
+  const cs=chains();
+  list.innerHTML = cs.length ? cs.map((c,i)=>
+    `<div class="row"><div class="grow"><div class="t">🔗 ${c.name.replace(/</g,'&lt;')}</div><div class="s">ЧЕРЕЗ ${cleanName(c.entry).toUpperCase().replace(/</g,'&lt;')}</div></div><span class="chev" onclick="delChain(${i})">✕</span></div>`
+  ).join('') : '<div class="list-note">Пока нет цепочек.</div>';
+  refreshChainsSub();
+}
+function delChain(i){ const c=chains(); c.splice(i,1); saveChains(c); renderChains(); if(connected) toast('Применится при следующем подключении'); }
+
+let chainEntry='';
+function openChainModal(){
+  chainEntry='';
+  document.getElementById('chain-name').value='';
+  document.getElementById('chain-search').value='';
+  renderChainNodes();
+  document.getElementById('chain-modal').classList.remove('hidden');
+}
+function closeChainModal(){ document.getElementById('chain-modal').classList.add('hidden'); }
+function chainNodeSource(){
+  // список серверов кэшируется как {all:[...], now:"..."}
+  const c = safeJson(localStorage.getItem('mise_lastServers'));
+  return (c && Array.isArray(c.all)) ? c.all : [];
+}
+function renderChainNodes(){
+  const box=document.getElementById('chain-nodes'); if(!box) return;
+  const q=(document.getElementById('chain-search').value||'').trim().toLowerCase();
+  const all=chainNodeSource().filter(n=>!n.startsWith('🔗')&&!n.startsWith('⛓'));
+  const items=all.filter(n=>!q||n.toLowerCase().includes(q));
+  if(!items.length){ box.innerHTML='<div class="list-note">Нет серверов — подключитесь или обновите подписку.</div>'; return; }
+  box.innerHTML=items.slice(0,200).map(n=>
+    `<div class="chain-node${n===chainEntry?' on':''}" onclick="pickChainEntry('${n.replace(/'/g,"\\'")}')">${flagImg(n,'flag')}<div class="grow"><div class="t">${cleanName(n).replace(/</g,'&lt;')}</div></div></div>`
+  ).join('');
+}
+function pickChainEntry(n){ chainEntry=n; renderChainNodes(); }
+function saveChain(){
+  const name=(document.getElementById('chain-name').value||'').trim();
+  if(!name){ toast('Введите название'); return; }
+  if(!chainEntry){ toast('Выберите входной сервер'); return; }
+  const cs=chains();
+  if(cs.some(c=>c.name===name)){ toast('Такая цепочка уже есть'); return; }
+  cs.push({name, entry: chainEntry});
+  saveChains(cs); closeChainModal(); renderChains();
+  toast('Цепочка создана — выбери «🔗 '+name+'» в списке серверов');
+}
+
+// ---------- ОФОРМЛЕНИЕ: цвет акцента ----------
+const ACCENTS=['oklch(.76 .17 150)','oklch(.72 .19 25)','oklch(.75 .16 250)','oklch(.8 .16 85)','oklch(.72 .2 320)','oklch(.78 .13 195)'];
+function curAccent(){ return localStorage.getItem('mise_accent')||ACCENTS[0]; }
+function applyAccent(){ document.documentElement.style.setProperty('--ok', curAccent()); }
+function renderAccents(){
+  const row=document.getElementById('accent-row'); if(!row) return;
+  row.innerHTML=ACCENTS.map(c=>`<button class="accent-dot${c===curAccent()?' on':''}" style="background:${c}" onclick="setAccent('${c}')"></button>`).join('');
+}
+function setAccent(c){ localStorage.setItem('mise_accent', c); applyAccent(); renderAccents(); }
+
 // ---------- автозапуск (нативный prefs) ----------
 async function initAutostart(){
   const b=document.getElementById('tgl-autostart'); if(!b||!Vpn||!Vpn.getAutostart) return;
@@ -694,6 +890,10 @@ function toggleTheme(){
 }
 
 applyTheme();
+applyAccent();
+renderAccents();
+applyPresetUi();
+refreshChainsSub();
 applyModeLabel();
 refreshSplitSub();
 initAutostart();
