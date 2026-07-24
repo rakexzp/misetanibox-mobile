@@ -22,6 +22,7 @@ class MihomoVpnService : VpnService() {
     // Запуск/остановка ядра блокирующие (парсинг конфига + загрузка подписки + shutdown),
     // на главном потоке они вешают интерфейс — тогда кнопка «отключить» не реагирует.
     private val worker = java.util.concurrent.Executors.newSingleThreadExecutor()
+    private var netCallback: android.net.ConnectivityManager.NetworkCallback? = null
     @Volatile private var running = false
 
     companion object {
@@ -131,6 +132,7 @@ class MihomoVpnService : VpnService() {
             }
             // старт удался — дескриптор теперь у ядра, оно закроет его при остановке
             ownedTunFd = -1
+            watchNetworkChanges()
             running = true
             isRunning = true
             broadcast("connected", "")
@@ -172,6 +174,7 @@ class MihomoVpnService : VpnService() {
     }
 
     private fun stopTunnel() {
+        unwatchNetworkChanges()
         try { Mobilecore.stop() } catch (_: Exception) {}
         try { Mobilecore.setProtect(null) } catch (_: Exception) {}
         closeOwnedTunFd()
@@ -181,6 +184,69 @@ class MihomoVpnService : VpnService() {
         broadcast("disconnected", "")
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
+    }
+
+    // Смена сети (Wi-Fi ↔ мобильный интернет) рвёт установленные соединения: сокеты
+    // остаются привязанными к пропавшему интерфейсу. Без реакции ядро продолжает
+    // держать мёртвые соединения, и связь «висит», пока пользователь не переподключится.
+    // Поэтому сообщаем системе актуальную сеть и просим ядро сбросить старые соединения —
+    // новые установятся уже через новый интерфейс.
+    private fun watchNetworkChanges() {
+        if (netCallback != null) return
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager ?: return
+        val cb = object : android.net.ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: android.net.Network) {
+                onNetworkSwitched(network)
+            }
+            override fun onCapabilitiesChanged(
+                network: android.net.Network,
+                caps: android.net.NetworkCapabilities,
+            ) {
+                if (caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED)) {
+                    onNetworkSwitched(network)
+                }
+            }
+            override fun onLost(network: android.net.Network) {
+                // сеть пропала — ждём появления новой, соединения сбросим тогда
+            }
+        }
+        try {
+            cm.registerDefaultNetworkCallback(cb)
+            netCallback = cb
+        } catch (_: Exception) {}
+    }
+
+    private fun unwatchNetworkChanges() {
+        val cb = netCallback ?: return
+        netCallback = null
+        try {
+            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
+            cm?.unregisterNetworkCallback(cb)
+        } catch (_: Exception) {}
+    }
+
+    @Volatile private var lastNetSwitch = 0L
+    private fun onNetworkSwitched(network: android.net.Network) {
+        if (!running) return
+        // защита от шторма событий при переключении
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastNetSwitch < 1500) return
+        lastNetSwitch = now
+
+        // система должна знать, поверх какой сети работает туннель
+        try { setUnderlyingNetworks(arrayOf(network)) } catch (_: Exception) {}
+
+        worker.execute {
+            try {
+                val u = java.net.URL("http://127.0.0.1:9090/connections")
+                val c = u.openConnection() as java.net.HttpURLConnection
+                c.requestMethod = "DELETE"
+                c.connectTimeout = 2000
+                c.readTimeout = 3000
+                c.responseCode
+                c.disconnect()
+            } catch (_: Exception) {}
+        }
     }
 
     // Закрывает дескриптор TUN, только если он всё ещё наш.
@@ -242,7 +308,7 @@ class MihomoVpnService : VpnService() {
                 |  chain$i:
                 |    type: http
                 |    url: ${yamlStr(subUrl)}
-                |    interval: 3600
+                |    interval: 21600
                 |    path: ./providers/chain$i.yaml
                 |    override:
                 |      dialer-proxy: ${yamlStr(entry)}
@@ -275,9 +341,15 @@ class MihomoVpnService : VpnService() {
         return """
             |mixed-port: 7890
             |mode: rule
-            |log-level: info
+            |log-level: warning
             |ipv6: false
             |unified-delay: true
+            |# поиск процесса-владельца соединения нам не нужен (раздельный туннель делает
+            |# VpnService), а на Android это сканирование /proc на каждое соединение — батарея
+            |find-process-mode: "off"
+            |# запоминать выбранный сервер между запусками
+            |profile:
+            |  store-selected: true
             |external-controller: 127.0.0.1:9090
             |dns:
             |  enable: true
