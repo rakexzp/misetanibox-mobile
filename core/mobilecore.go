@@ -1,12 +1,16 @@
 package mobilecore
 
 import (
+	"fmt"
+	"strings"
 	"syscall"
 
 	"github.com/metacubex/mihomo/component/dialer"
 	C "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/hub"
 	"github.com/metacubex/mihomo/hub/executor"
+	"github.com/metacubex/mihomo/listener"
+	"github.com/metacubex/mihomo/tunnel"
 	tun "github.com/metacubex/sing-tun"
 )
 
@@ -57,6 +61,27 @@ func Start(homeDir, configYAML string, fd int) string {
 	// hub.ApplyConfig = applyRoute (поднимает external-controller/API) + executor.ApplyConfig (ядро).
 	hub.ApplyConfig(cfg)
 	return ""
+}
+
+// Diagnose — краткий отчёт о состоянии ядра. Нужен, потому что hub.ApplyConfig не
+// возвращает ошибок: если TUN не поднялся или подписка не загрузилась, приложение
+// иначе показывает «подключено» при мёртвом туннеле.
+func Diagnose() string {
+	var b strings.Builder
+
+	tunConf := listener.GetTunConf()
+	fmt.Fprintf(&b, "TUN: включён=%v стек=%v\n", tunConf.Enable, tunConf.Stack)
+
+	fmt.Fprintf(&b, "узлов всего: %d\n", len(tunnel.Proxies()))
+
+	providers := tunnel.Providers()
+	if len(providers) == 0 {
+		b.WriteString("провайдеров подписки нет\n")
+	}
+	for name, p := range providers {
+		fmt.Fprintf(&b, "подписка %s: %d узлов\n", name, len(p.Proxies()))
+	}
+	return b.String()
 }
 
 // Stop останавливает ядро.

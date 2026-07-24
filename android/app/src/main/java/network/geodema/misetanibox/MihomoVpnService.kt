@@ -136,6 +136,16 @@ class MihomoVpnService : VpnService() {
             running = true
             isRunning = true
             broadcast("connected", "")
+
+            // Через несколько секунд снимаем отчёт ядра: поднялся ли TUN и загрузилась ли
+            // подписка. hub.ApplyConfig ошибок не возвращает, без этого «нет трафика»
+            // выглядит как «всё в порядке».
+            worker.execute {
+                try {
+                    Thread.sleep(6000)
+                    if (running) broadcast("diag", Mobilecore.diagnose())
+                } catch (_: Exception) {}
+            }
         } catch (e: Exception) {
             broadcast("error", e.message ?: "неизвестная ошибка запуска")
             stopTunnel()

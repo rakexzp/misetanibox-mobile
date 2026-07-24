@@ -349,7 +349,7 @@ function go(t){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'v0.8.0';
+const BUILD = 'v0.9.0';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
@@ -458,6 +458,7 @@ async function toggleConnect(){
 if(Vpn && Vpn.addListener){
   Vpn.addListener('vpnState', (s)=>{
     dbg('событие: '+s.state+(s.message?' — '+s.message:''));
+    if(s.state==='diag'){ dbg('ядро: '+String(s.message||'').trim().replace(/\n/g,' | ')); return; }
     if(s.state==='connected') setUiConnected(true);
     else if(s.state==='disconnected') setUiConnected(false);
     else if(s.state==='error'){ setUiConnected(false); toast('VPN: '+(s.message||'ошибка')); }
