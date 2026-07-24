@@ -5,6 +5,11 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      include_x86:
+        description: "Добавить x86_64 (для эмулятора; в релиз не нужен)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -57,11 +62,20 @@ jobs:
           # страницы (Android 15 / 16 KB page size), иначе либа не грузится на новых образах.
           # -tags with_gvisor ОБЯЗАТЕЛЕН: без него sing-tun подставляет заглушку,
           # TUN не поднимается и трафик молча уходит в никуда.
+          # -s -w выкидывают таблицу символов и отладочную информацию: это ~14 МБ
+          # на каждую архитектуру, в релизе они не нужны.
+          # x86_64 нужен только для эмулятора, в обычный релиз не кладём — иначе
+          # пользователи качают лишние ~25 МБ.
+          TARGETS="android/arm64,android/arm"
+          if [ "${{ github.event.inputs.include_x86 }}" = "true" ]; then
+            TARGETS="$TARGETS,android/amd64"
+          fi
+          echo "targets: $TARGETS"
           gomobile bind -v \
-            -target=android/arm64,android/arm,android/amd64 \
+            -target="$TARGETS" \
             -androidapi 21 \
             -tags with_gvisor \
-            -ldflags="-extldflags=-Wl,-z,max-page-size=16384" \
+            -ldflags="-s -w -extldflags=-Wl,-z,max-page-size=16384" \
             -o mihomo.aar .
           mkdir -p ../android/app/libs
           cp mihomo.aar ../android/app/libs/mihomo.aar
