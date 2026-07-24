@@ -349,7 +349,7 @@ function go(t){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'v0.10.0';
+const BUILD = 'v0.11.0';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
@@ -360,7 +360,7 @@ const Vpn = (Cap && Cap.registerPlugin) ? Cap.registerPlugin('Vpn')
 let dbgLines=[];
 function dbg(msg){
   const t=new Date().toISOString().substr(11,8);
-  dbgLines.push(t+' '+msg); if(dbgLines.length>40) dbgLines.shift();
+  dbgLines.push(t+' '+msg); if(dbgLines.length>60) dbgLines.shift();
   const el=document.getElementById('dbg'); if(el){ el.classList.add('on'); el.textContent=dbgLines.join('\n'); el.scrollTop=el.scrollHeight; }
 }
 function copyDbg(){ try{ navigator.clipboard.writeText(dbgLines.join('\n')); toast('Лог скопирован'); }catch(e){} }
