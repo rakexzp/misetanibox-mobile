@@ -323,6 +323,14 @@ function flagImg(name,cls){
   const c=countryCode(name);
   return c ? `<img class="${cls}" src="flags/${c}.svg" alt="">` : `<span class="${cls}" style="background:var(--ln)"></span>`;
 }
+// Экранирование перед вставкой в DOM. Имена узлов приходят из подписки — то есть
+// снаружи; без экранирования разметка из имени выполнилась бы в WebView, где доступен
+// мост к нативному VPN-плагину.
+function esc(v){
+  return String(v==null?'':v)
+    .replace(/&/g,'&amp;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
 function cleanName(name){
   return Array.from(name||'').filter(ch=>{const cp=ch.codePointAt(0);return !(cp>=0x1f1e6&&cp<=0x1f1ff);}).join('').replace(/^[\s|·・•\-–—_]+/,'').trim()||name;
 }
@@ -341,7 +349,7 @@ function go(t){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'v0.6.0';
+const BUILD = 'v0.7.0';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
@@ -488,7 +496,7 @@ async function loadProxies(){
     g.all.map(n=>{
       const active=n===g.now, d=delays[n];
       const ping = d===undefined?'' : (d>0?`<span class="ping" style="color:${pingColor(d)}">${d} мс</span>`:`<span class="ping" style="color:var(--bad)">—</span>`);
-      return `<div class="row" onclick="selectNode('${n.replace(/'/g,"\\'")}')">${flagImg(n,'flag')}<div class="grow"><div class="t">${cleanName(n)}</div><div class="s">${active?'● ВЫБРАН':''}</div></div>${ping}</div>`;
+      return `<div class="row" onclick="selectNode('${n.replace(/'/g,"\\'")}')">${flagImg(n,'flag')}<div class="grow"><div class="t">${esc(cleanName(n))}</div><div class="s">${active?'● ВЫБРАН':''}</div></div>${ping}</div>`;
     }).join('');
   updateHomeServer(g.now, delays[g.now]);
 }
@@ -504,7 +512,7 @@ function renderCachedServers(){
   list.innerHTML='<div class="list-note">Список из прошлой сессии. Подключитесь, чтобы выбрать сервер и замерить пинг.</div>'+
     cached.all.map(n=>{
       const active=n===cached.now;
-      return `<div class="row" style="opacity:.6">${flagImg(n,'flag')}<div class="grow"><div class="t">${cleanName(n)}</div><div class="s">${active?'● БЫЛ ВЫБРАН':''}</div></div></div>`;
+      return `<div class="row" style="opacity:.6">${flagImg(n,'flag')}<div class="grow"><div class="t">${esc(cleanName(n))}</div><div class="s">${active?'● БЫЛ ВЫБРАН':''}</div></div></div>`;
     }).join('');
 }
 
@@ -543,7 +551,7 @@ function renderPreviewServers(names){
     '<div class="list-note">Пинг и подключение — после запуска VPN. Тап — выбрать сервер по умолчанию.</div>'+
     names.map(n=>{
       const active=n===pref;
-      return `<div class="row" onclick="preSelect('${n.replace(/'/g,"\\'")}')">${flagImg(n,'flag')}<div class="grow"><div class="t">${cleanName(n)}</div><div class="s">${active?'● ВЫБРАН':''}</div></div></div>`;
+      return `<div class="row" onclick="preSelect('${n.replace(/'/g,"\\'")}')">${flagImg(n,'flag')}<div class="grow"><div class="t">${esc(cleanName(n))}</div><div class="s">${active?'● ВЫБРАН':''}</div></div></div>`;
     }).join('');
 }
 async function previewServers(){
@@ -664,7 +672,7 @@ function renderRules(){
   if(!list) return;
   const rules=customRules();
   if(cnt) cnt.textContent = rules.length ? rules.length+' СВОИХ ПРАВИЛ' : 'НЕТ СВОИХ ПРАВИЛ';
-  list.innerHTML = rules.map((r,i)=>`<div class="row"><div class="grow"><div class="t" style="font-size:14px">${r.split(',')[1]||''}</div><div class="rule-line">${r.replace(/</g,'&lt;')}</div></div><span class="chev" onclick="delRule(${i})">✕</span></div>`).join('');
+  list.innerHTML = rules.map((r,i)=>`<div class="row"><div class="grow"><div class="t" style="font-size:14px">${esc(r.split(',')[1]||'')}</div><div class="rule-line">${esc(r)}</div></div><span class="chev" onclick="delRule(${i})">✕</span></div>`).join('');
 }
 function delRule(i){ const r=customRules(); r.splice(i,1); saveCustomRules(r); renderRules(); if(connected) toast('Применится при следующем подключении'); }
 
@@ -702,7 +710,7 @@ function renderChains(){
   const list=document.getElementById('chain-list'); if(!list) return;
   const cs=chains();
   list.innerHTML = cs.length ? cs.map((c,i)=>
-    `<div class="row"><div class="grow"><div class="t">🔗 ${c.name.replace(/</g,'&lt;')}</div><div class="s">ЧЕРЕЗ ${cleanName(c.entry).toUpperCase().replace(/</g,'&lt;')}</div></div><span class="chev" onclick="delChain(${i})">✕</span></div>`
+    `<div class="row"><div class="grow"><div class="t">🔗 ${esc(c.name)}</div><div class="s">ЧЕРЕЗ ${esc(cleanName(c.entry).toUpperCase())}</div></div><span class="chev" onclick="delChain(${i})">✕</span></div>`
   ).join('') : '<div class="list-note">Пока нет цепочек.</div>';
   refreshChainsSub();
 }
@@ -729,7 +737,7 @@ function renderChainNodes(){
   const items=all.filter(n=>!q||n.toLowerCase().includes(q));
   if(!items.length){ box.innerHTML='<div class="list-note">Нет серверов — подключитесь или обновите подписку.</div>'; return; }
   box.innerHTML=items.slice(0,200).map(n=>
-    `<div class="chain-node${n===chainEntry?' on':''}" onclick="pickChainEntry('${n.replace(/'/g,"\\'")}')">${flagImg(n,'flag')}<div class="grow"><div class="t">${cleanName(n).replace(/</g,'&lt;')}</div></div></div>`
+    `<div class="chain-node${n===chainEntry?' on':''}" onclick="pickChainEntry('${n.replace(/'/g,"\\'")}')">${flagImg(n,'flag')}<div class="grow"><div class="t">${esc(cleanName(n))}</div></div></div>`
   ).join('');
 }
 function pickChainEntry(n){ chainEntry=n; renderChainNodes(); }
@@ -816,8 +824,8 @@ function renderAppList(){
     const on=splitSelected.has(a.package);
     const mono=(a.label||a.package||'?').trim().charAt(0);
     return `<div class="app-row" onclick="toggleApp('${a.package.replace(/'/g,"\\'")}')">
-      <div class="app-mono">${mono.replace(/</g,'&lt;')}</div>
-      <div class="grow"><div class="t">${(a.label||a.package).replace(/</g,'&lt;')}</div><div class="s">${a.package.replace(/</g,'&lt;')}</div></div>
+      <div class="app-mono">${esc(mono)}</div>
+      <div class="grow"><div class="t">${esc(a.label||a.package)}</div><div class="s">${esc(a.package)}</div></div>
       <div class="chk${on?' on':''}">✓</div></div>`;
   }).join('');
 }
