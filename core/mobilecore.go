@@ -3,6 +3,7 @@ package mobilecore
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/metacubex/mihomo/component/dialer"
@@ -10,9 +11,45 @@ import (
 	"github.com/metacubex/mihomo/hub"
 	"github.com/metacubex/mihomo/hub/executor"
 	"github.com/metacubex/mihomo/listener"
+	"github.com/metacubex/mihomo/log"
 	"github.com/metacubex/mihomo/tunnel"
 	tun "github.com/metacubex/sing-tun"
 )
+
+// Кольцевой буфер последних предупреждений/ошибок ядра.
+// hub.ApplyConfig ошибок не возвращает — всё, что ломается внутри (TUN, подписка),
+// только пишется в лог. Без этого причина сбоя на устройстве недоступна.
+var (
+	logMu    sync.Mutex
+	logLines []string
+	logOnce  sync.Once
+)
+
+func startLogCapture() {
+	logOnce.Do(func() {
+		go func() {
+			for ev := range log.Subscribe() {
+				switch ev.LogLevel {
+				case log.ERROR, log.WARNING:
+					logMu.Lock()
+					logLines = append(logLines, ev.Type()+": "+ev.Payload)
+					if len(logLines) > 15 {
+						logLines = logLines[len(logLines)-15:]
+					}
+					logMu.Unlock()
+				}
+			}
+		}()
+	})
+}
+
+func recentLogs() []string {
+	logMu.Lock()
+	defer logMu.Unlock()
+	out := make([]string, len(logLines))
+	copy(out, logLines)
+	return out
+}
 
 // SocketProtector реализуется на стороне Kotlin (VpnService.protect).
 // gomobile превращает интерфейс в Java-интерфейс.
@@ -43,6 +80,8 @@ func Start(homeDir, configYAML string, fd int) string {
 	if !tun.WithGVisor {
 		return "ядро собрано без поддержки TUN (нужен -tags with_gvisor)"
 	}
+
+	startLogCapture()
 
 	C.SetHomeDir(homeDir)
 	cfg, err := executor.ParseWithBytes([]byte(configYAML))
@@ -80,6 +119,15 @@ func Diagnose() string {
 	}
 	for name, p := range providers {
 		fmt.Fprintf(&b, "подписка %s: %d узлов\n", name, len(p.Proxies()))
+	}
+
+	if lines := recentLogs(); len(lines) > 0 {
+		b.WriteString("ошибки ядра:\n")
+		for _, l := range lines {
+			b.WriteString("  " + l + "\n")
+		}
+	} else {
+		b.WriteString("ошибок ядра нет\n")
 	}
 	return b.String()
 }
