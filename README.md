@@ -26,6 +26,10 @@ APK собирается в CI по тегу `vX.Y.Z` (`.github/workflows/androi
 Готовый APK выкладывается на зеркало:
 `https://files.geodema.network/misetani/Misetanibox_android.apk`
 
+## Благодарности
+
+Плитка в шторке, виджет и автозапуск — вклад [@14Unight](https://github.com/14Unight).
+
 ## Лицензия
 
 MIT. Ядро — [MetaCubeX/mihomo](https://github.com/MetaCubeX/mihomo) (GPL-3.0).
