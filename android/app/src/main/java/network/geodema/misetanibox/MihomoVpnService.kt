@@ -293,15 +293,21 @@ class MihomoVpnService : VpnService() {
         rules: Array<String>,
         chains: List<Pair<String, String>>, // имя цепочки → входной узел
     ): String {
-        val header = if (hwid.isNotEmpty())
-            """
-            |    header:
-            |      x-hwid: ["$hwid"]
-            |      x-device-os: ["Android"]
-            |      x-ver-os: ["${Build.VERSION.RELEASE}"]
-            |      x-device-model: ["${Build.MODEL}"]
-            """.trimMargin()
-        else ""
+        // Заголовки запроса подписки. User-Agent обязателен: панель отдаёт формат конфига
+        // по нему, и с «незнакомым» UA вместо clash-YAML приходит другой формат — провайдер
+        // тогда загружается пустым, а трафику некуда идти при живом сервере.
+        // Отступы без маркера "|": строка встраивается в шаблон как |$header,
+        // маркер добавляет сам шаблон — иначе в YAML попадут литеральные палки.
+        val header = buildString {
+            append("    header:\n")
+            append("      User-Agent: [\"clash-meta/mihomo\"]")
+            if (hwid.isNotEmpty()) {
+                append("\n      x-hwid: [\"$hwid\"]")
+                append("\n      x-device-os: [\"Android\"]")
+                append("\n      x-ver-os: [\"${Build.VERSION.RELEASE}\"]")
+                append("\n      x-device-model: [\"${Build.MODEL}\"]")
+            }
+        }
 
         // Цепочки: узлы приходят из провайдера подписки, поэтому dialer-proxy нельзя
         // повесить ни на группу (mihomo это запрещает), ни на конкретный узел.
