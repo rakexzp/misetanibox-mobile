@@ -16,6 +16,12 @@ import java.io.File
 class MihomoVpnService : VpnService() {
 
     private var tunFd: ParcelFileDescriptor? = null
+    // Сырой дескриптор TUN, пока ИМ ВЛАДЕЕМ МЫ. После успешного старта владение переходит
+    // ядру (sing-tun закрывает его сам при Stop), и здесь снова -1 — чтобы не закрыть дважды.
+    @Volatile private var ownedTunFd = -1
+    // Запуск/остановка ядра блокирующие (парсинг конфига + загрузка подписки + shutdown),
+    // на главном потоке они вешают интерфейс — тогда кнопка «отключить» не реагирует.
+    private val worker = java.util.concurrent.Executors.newSingleThreadExecutor()
     @Volatile private var running = false
 
     companion object {
@@ -35,18 +41,26 @@ class MihomoVpnService : VpnService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
-                stopTunnel()
-                return START_NOT_STICKY
+                worker.execute { stopTunnel() }
             }
             else -> {
                 val subUrl = intent?.getStringExtra(EXTRA_SUB_URL) ?: ""
                 val hwid = intent?.getStringExtra(EXTRA_HWID) ?: ""
                 val splitMode = intent?.getStringExtra(EXTRA_SPLIT_MODE) ?: "off"
                 val splitApps = intent?.getStringArrayExtra(EXTRA_SPLIT_APPS) ?: arrayOf()
-                startTunnel(subUrl, hwid, splitMode, splitApps)
+                if (subUrl.isEmpty()) {
+                    // сюда попадаем при рестарте сервиса системой с пустым intent
+                    stopSelf()
+                    return START_NOT_STICKY
+                }
+                // Уведомление обязано появиться сразу после startForegroundService,
+                // поэтому показываем его на главном потоке, а запуск ядра уводим в фон.
+                startForegroundNotif()
+                worker.execute { startTunnel(subUrl, hwid, splitMode, splitApps) }
             }
         }
-        return START_STICKY
+        // не START_STICKY: иначе система переподнимет сервис с пустым intent и без подписки
+        return START_NOT_STICKY
     }
 
     private fun startTunnel(subUrl: String, hwid: String, splitMode: String, splitApps: Array<String>) {
@@ -68,6 +82,7 @@ class MihomoVpnService : VpnService() {
             }
             tunFd = pfd
             val fd = pfd.detachFd()
+            ownedTunFd = fd // пока ядро не стартовало — дескриптор наш
 
             val homeDir = File(filesDir, "clash").apply { mkdirs() }.absolutePath
             val config = buildConfig(subUrl, hwid)
@@ -77,13 +92,14 @@ class MihomoVpnService : VpnService() {
                 override fun protect(fd: Long): Boolean = protect(fd.toInt())
             })
 
-            startForegroundNotif()
             val err = Mobilecore.start(homeDir, config, fd.toLong())
             if (err.isNotEmpty()) {
                 broadcast("error", err)
-                stopTunnel()
+                stopTunnel() // закроет дескриптор: иначе интерфейс останется поднятым и весь трафик уйдёт в никуда
                 return
             }
+            // старт удался — дескриптор теперь у ядра, оно закроет его при остановке
+            ownedTunFd = -1
             running = true
             isRunning = true
             broadcast("connected", "")
@@ -127,7 +143,7 @@ class MihomoVpnService : VpnService() {
     private fun stopTunnel() {
         try { Mobilecore.stop() } catch (_: Exception) {}
         try { Mobilecore.setProtect(null) } catch (_: Exception) {}
-        try { tunFd?.close() } catch (_: Exception) {}
+        closeOwnedTunFd()
         tunFd = null
         running = false
         isRunning = false
@@ -136,13 +152,26 @@ class MihomoVpnService : VpnService() {
         stopSelf()
     }
 
+    // Закрывает дескриптор TUN, только если он всё ещё наш.
+    // После detachFd() у ParcelFileDescriptor владения нет, и его close() ничего не закрывал:
+    // интерфейс оставался поднятым, а трафик уходил в никуда даже после «отключить».
+    private fun closeOwnedTunFd() {
+        val raw = ownedTunFd
+        ownedTunFd = -1
+        if (raw >= 0) {
+            try { ParcelFileDescriptor.adoptFd(raw).close() } catch (_: Exception) {}
+        }
+    }
+
     override fun onDestroy() {
         stopTunnel()
+        worker.shutdown()
         super.onDestroy()
     }
 
     override fun onRevoke() {
-        stopTunnel()
+        // система отозвала разрешение VPN — гасим ядро в фоне, чтобы не блокировать поток
+        worker.execute { stopTunnel() }
         super.onRevoke()
     }
 
