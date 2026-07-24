@@ -23,6 +23,10 @@ object VpnPrefs {
     const val KEY_SPLIT_MODE = "split_mode"
     /** JSON-массив имён пакетов */
     const val KEY_SPLIT_APPS = "split_apps"
+    /** JSON-массив строк-правил mihomo */
+    const val KEY_RULES = "rules"
+    /** JSON-массив цепочек [{name, entry}] */
+    const val KEY_CHAINS = "chains"
 
     fun prefs(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -56,14 +60,38 @@ object VpnPrefs {
     }
 
     /** Сохранить то, чем стартует туннель, чтобы плитка/виджет/бут могли поднять его сами. */
-    fun saveLaunchState(ctx: Context, subUrl: String, hwid: String, splitMode: String, splitApps: Array<String>) {
+    fun saveLaunchState(
+        ctx: Context,
+        subUrl: String,
+        hwid: String,
+        splitMode: String,
+        splitApps: Array<String>,
+        rules: Array<String> = arrayOf(),
+        chainsJson: String = "[]",
+    ) {
         val sm = if (splitMode == "bypass" || splitMode == "only") splitMode else "off"
         prefs(ctx).edit()
             .putString(KEY_SUB_URL, subUrl)
             .putString(KEY_HWID, hwid)
             .putString(KEY_SPLIT_MODE, sm)
             .putString(KEY_SPLIT_APPS, JSONArray(splitApps.toList()).toString())
+            .putString(KEY_RULES, JSONArray(rules.toList()).toString())
+            .putString(KEY_CHAINS, chainsJson)
             .apply()
+    }
+
+    private fun jsonStringArray(raw: String?): Array<String> {
+        return try {
+            val arr = JSONArray(raw ?: "[]")
+            val out = ArrayList<String>()
+            for (i in 0 until arr.length()) {
+                val v = arr.optString(i, "").trim()
+                if (v.isNotEmpty()) out.add(v)
+            }
+            out.toTypedArray()
+        } catch (_: Exception) {
+            arrayOf()
+        }
     }
 
     /**
@@ -80,6 +108,8 @@ object VpnPrefs {
             putExtra(MihomoVpnService.EXTRA_HWID, p.getString(KEY_HWID, "") ?: "")
             putExtra(MihomoVpnService.EXTRA_SPLIT_MODE, splitMode(ctx))
             putExtra(MihomoVpnService.EXTRA_SPLIT_APPS, splitAppsArray(ctx))
+            putExtra(MihomoVpnService.EXTRA_RULES, jsonStringArray(p.getString(KEY_RULES, "[]")))
+            putExtra(MihomoVpnService.EXTRA_CHAINS, p.getString(KEY_CHAINS, "[]") ?: "[]")
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) ctx.startForegroundService(i) else ctx.startService(i)
         return null

@@ -31,6 +31,10 @@ class MihomoVpnService : VpnService() {
         const val EXTRA_HWID = "hwid"
         const val EXTRA_SPLIT_MODE = "split_mode"
         const val EXTRA_SPLIT_APPS = "split_apps"
+        const val EXTRA_RULES = "rules"
+        const val EXTRA_CHAINS = "chains" // JSON: [{"name":"...","entry":"..."}]
+        // префикс имени группы-цепочки в списке серверов
+        const val CHAIN_PREFIX = "🔗 "
         const val CHANNEL_ID = "misetanibox_vpn"
         const val NOTIF_ID = 7
 
@@ -48,6 +52,8 @@ class MihomoVpnService : VpnService() {
                 val hwid = intent?.getStringExtra(EXTRA_HWID) ?: ""
                 val splitMode = intent?.getStringExtra(EXTRA_SPLIT_MODE) ?: "off"
                 val splitApps = intent?.getStringArrayExtra(EXTRA_SPLIT_APPS) ?: arrayOf()
+                val rules = intent?.getStringArrayExtra(EXTRA_RULES) ?: arrayOf()
+                val chains = parseChains(intent?.getStringExtra(EXTRA_CHAINS))
                 if (subUrl.isEmpty()) {
                     // сюда попадаем при рестарте сервиса системой с пустым intent
                     stopSelf()
@@ -56,14 +62,39 @@ class MihomoVpnService : VpnService() {
                 // Уведомление обязано появиться сразу после startForegroundService,
                 // поэтому показываем его на главном потоке, а запуск ядра уводим в фон.
                 startForegroundNotif()
-                worker.execute { startTunnel(subUrl, hwid, splitMode, splitApps) }
+                worker.execute { startTunnel(subUrl, hwid, splitMode, splitApps, rules, chains) }
             }
         }
         // не START_STICKY: иначе система переподнимет сервис с пустым intent и без подписки
         return START_NOT_STICKY
     }
 
-    private fun startTunnel(subUrl: String, hwid: String, splitMode: String, splitApps: Array<String>) {
+    // Разбор цепочек из JSON: [{"name":"NL→DE","entry":"🇳🇱 NL #1"}]
+    private fun parseChains(json: String?): List<Pair<String, String>> {
+        if (json.isNullOrBlank()) return emptyList()
+        return try {
+            val arr = org.json.JSONArray(json)
+            val out = ArrayList<Pair<String, String>>()
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                val name = o.optString("name").trim()
+                val entry = o.optString("entry").trim()
+                if (name.isNotEmpty() && entry.isNotEmpty()) out.add(name to entry)
+            }
+            out
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun startTunnel(
+        subUrl: String,
+        hwid: String,
+        splitMode: String,
+        splitApps: Array<String>,
+        rules: Array<String>,
+        chains: List<Pair<String, String>>,
+    ) {
         if (running) return
         try {
             val builder = Builder()
@@ -85,7 +116,7 @@ class MihomoVpnService : VpnService() {
             ownedTunFd = fd // пока ядро не стартовало — дескриптор наш
 
             val homeDir = File(filesDir, "clash").apply { mkdirs() }.absolutePath
-            val config = buildConfig(subUrl, hwid)
+            val config = buildConfig(subUrl, hwid, rules, chains)
 
             // защита исходящих сокетов ядра (иначе петля через TUN)
             Mobilecore.setProtect(object : SocketProtector {
@@ -175,7 +206,17 @@ class MihomoVpnService : VpnService() {
         super.onRevoke()
     }
 
-    private fun buildConfig(subUrl: String, hwid: String): String {
+    // Экранирование строки в YAML: имена узлов приходят из подписки и содержат
+    // эмодзи, кавычки и двоеточия — без экранирования конфиг ломается.
+    private fun yamlStr(v: String): String =
+        "\"" + v.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
+    private fun buildConfig(
+        subUrl: String,
+        hwid: String,
+        rules: Array<String>,
+        chains: List<Pair<String, String>>, // имя цепочки → входной узел
+    ): String {
         val header = if (hwid.isNotEmpty())
             """
             |    header:
@@ -185,6 +226,52 @@ class MihomoVpnService : VpnService() {
             |      x-device-model: ["${Build.MODEL}"]
             """.trimMargin()
         else ""
+
+        // Цепочки: узлы приходят из провайдера подписки, поэтому dialer-proxy нельзя
+        // повесить ни на группу (mihomo это запрещает), ни на конкретный узел.
+        // Решение — ещё один провайдер с той же подпиской и override: все его узлы
+        // ходят через входной узел, а префикс разводит имена с основными.
+        val chainProviders = StringBuilder()
+        val chainGroups = StringBuilder()
+        val chainNames = mutableListOf<String>()
+        chains.forEachIndexed { i, (name, entry) ->
+            val groupName = "$CHAIN_PREFIX$name"
+            chainNames += groupName
+            chainProviders.append(
+                """
+                |  chain$i:
+                |    type: http
+                |    url: ${yamlStr(subUrl)}
+                |    interval: 3600
+                |    path: ./providers/chain$i.yaml
+                |    override:
+                |      dialer-proxy: ${yamlStr(entry)}
+                |      additional-prefix: ${yamlStr("$name · ")}
+                |$header
+                """.trimMargin()
+            ).append("\n")
+            chainGroups.append(
+                """
+                |  - name: ${yamlStr(groupName)}
+                |    type: select
+                |    use:
+                |      - chain$i
+                """.trimMargin()
+            ).append("\n")
+        }
+
+        // Цепочки добавляем в главный селектор, чтобы их можно было выбрать как обычный сервер
+        val proxyGroupChains = if (chainNames.isEmpty()) "" else
+            "\n    proxies:\n" + chainNames.joinToString("\n") { "      - ${yamlStr(it)}" }
+
+        val rulesBlock = buildString {
+            for (r in rules) {
+                val line = r.trim()
+                if (line.isNotEmpty()) append("  - ").append(yamlStr(line)).append("\n")
+            }
+            append("  - MATCH,PROXY")
+        }
+
         return """
             |mixed-port: 7890
             |mode: rule
@@ -214,17 +301,19 @@ class MihomoVpnService : VpnService() {
             |proxy-providers:
             |  main:
             |    type: http
-            |    url: "$subUrl"
+            |    url: ${yamlStr(subUrl)}
             |    interval: 3600
             |    path: ./providers/main.yaml
             |$header
+            |$chainProviders
             |proxy-groups:
             |  - name: PROXY
-            |    type: select
+            |    type: select$proxyGroupChains
             |    use:
             |      - main
+            |$chainGroups
             |rules:
-            |  - MATCH,PROXY
+            |$rulesBlock
         """.trimMargin()
     }
 

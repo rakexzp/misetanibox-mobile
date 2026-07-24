@@ -22,6 +22,8 @@ class VpnPlugin : Plugin() {
     private var pendingHwid = ""
     private var pendingSplitMode = "off"
     private var pendingSplitApps = arrayOf<String>()
+    private var pendingRules = arrayOf<String>()
+    private var pendingChains = "[]"
     private var receiver: BroadcastReceiver? = null
 
     override fun load() {
@@ -57,6 +59,15 @@ class VpnPlugin : Plugin() {
             appsArr?.optString(i)?.let { if (it.isNotEmpty()) appsList.add(it) }
         }
         pendingSplitApps = appsList.toTypedArray()
+
+        val rulesArr = call.getArray("rules", com.getcapacitor.JSArray())
+        val rulesList = ArrayList<String>()
+        for (i in 0 until (rulesArr?.length() ?: 0)) {
+            rulesArr?.optString(i)?.let { if (it.isNotBlank()) rulesList.add(it) }
+        }
+        pendingRules = rulesList.toTypedArray()
+        // цепочки приходят готовым JSON-массивом [{name, entry}]
+        pendingChains = call.getArray("chains", com.getcapacitor.JSArray())?.toString() ?: "[]"
         if (pendingSubUrl.isEmpty()) {
             call.reject("нет URL подписки")
             return
@@ -82,13 +93,18 @@ class VpnPlugin : Plugin() {
 
     private fun launchService() {
         // дублируем параметры в prefs, чтобы плитка/виджет/автозапуск могли поднять туннель без WebView
-        VpnPrefs.saveLaunchState(context, pendingSubUrl, pendingHwid, pendingSplitMode, pendingSplitApps)
+        VpnPrefs.saveLaunchState(
+            context, pendingSubUrl, pendingHwid, pendingSplitMode, pendingSplitApps,
+            pendingRules, pendingChains,
+        )
         val i = Intent(context, MihomoVpnService::class.java)
         i.action = MihomoVpnService.ACTION_START
         i.putExtra(MihomoVpnService.EXTRA_SUB_URL, pendingSubUrl)
         i.putExtra(MihomoVpnService.EXTRA_HWID, pendingHwid)
         i.putExtra(MihomoVpnService.EXTRA_SPLIT_MODE, pendingSplitMode)
         i.putExtra(MihomoVpnService.EXTRA_SPLIT_APPS, pendingSplitApps)
+        i.putExtra(MihomoVpnService.EXTRA_RULES, pendingRules)
+        i.putExtra(MihomoVpnService.EXTRA_CHAINS, pendingChains)
         context.startForegroundService(i)
     }
 
