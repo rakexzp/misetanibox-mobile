@@ -62,6 +62,11 @@ jobs:
           # страницы (Android 15 / 16 KB page size), иначе либа не грузится на новых образах.
           # -tags with_gvisor ОБЯЗАТЕЛЕН: без него sing-tun подставляет заглушку,
           # TUN не поднимается и трафик молча уходит в никуда.
+          # -tags cmfa ОБЯЗАТЕЛЕН (режим встраивания, ClashMetaForAndroid): без него
+          # sing_tun при старте TUN лезет читать /data/system/packages.xml (маппинг
+          # пакет→UID для android-rules) → на неroot Android permission denied →
+          # "Start TUN listening error" → TUN не поднимается (подключено, но трафика нет).
+          # С cmfa buildAndroidRules = no-op, пакетную фильтрацию делает VpnService.
           # -s -w выкидывают таблицу символов и отладочную информацию: это ~14 МБ
           # на каждую архитектуру, в релизе они не нужны.
           # x86_64 нужен только для эмулятора, в обычный релиз не кладём — иначе
@@ -74,7 +79,7 @@ jobs:
           gomobile bind -v \
             -target="$TARGETS" \
             -androidapi 21 \
-            -tags with_gvisor \
+            -tags with_gvisor,cmfa \
             -ldflags="-s -w -extldflags=-Wl,-z,max-page-size=16384" \
             -o mihomo.aar .
           mkdir -p ../android/app/libs
