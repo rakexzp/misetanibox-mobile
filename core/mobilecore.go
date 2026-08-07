@@ -104,6 +104,13 @@ func Start(homeDir, configYAML string, fd int) string {
 	if len(cfg.General.Tun.DNSHijack) == 0 {
 		cfg.General.Tun.DNSHijack = []string{"any:53"}
 	}
+	// Классический режим: запускаем КОНФИГ подписки как есть (со всеми proxy-group'ами
+	// автора). Форсим только адрес API, чтобы coreRequest из приложения всегда достучался
+	// (в подписке external-controller может быть любым или с секретом).
+	if cfg.Controller != nil {
+		cfg.Controller.ExternalController = "127.0.0.1:9090"
+		cfg.Controller.Secret = ""
+	}
 	// hub.ApplyConfig = applyRoute (поднимает external-controller/API) + executor.ApplyConfig (ядро).
 	hub.ApplyConfig(cfg)
 	return ""

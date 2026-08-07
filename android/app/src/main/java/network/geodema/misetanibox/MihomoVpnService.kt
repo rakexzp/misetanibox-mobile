@@ -101,6 +101,13 @@ class MihomoVpnService : VpnService() {
     ) {
         if (running) return
         try {
+            // Классика: сперва тянем конфиг подписки (со всеми селекторами автора). Если не
+            // удалось — не поднимаем TUN, иначе интернет пропадёт при мёртвом туннеле.
+            val config = fetchConfig(subUrl, hwid)
+            if (config.isBlank()) {
+                broadcast("error", "не удалось загрузить конфиг подписки — проверьте ссылку и интернет")
+                return
+            }
             val builder = Builder()
                 .setSession("Misetanibox")
                 .setMtu(9000)
@@ -120,7 +127,7 @@ class MihomoVpnService : VpnService() {
             ownedTunFd = fd // пока ядро не стартовало — дескриптор наш
 
             val homeDir = File(filesDir, "clash").apply { mkdirs() }.absolutePath
-            val config = buildConfig(subUrl, hwid, rules, chains, serviceGroups)
+            // config уже получен фетчем выше (классический режим)
 
             // защита исходящих сокетов ядра (иначе петля через TUN)
             Mobilecore.setProtect(object : SocketProtector {
@@ -290,6 +297,33 @@ class MihomoVpnService : VpnService() {
     private fun yamlStr(v: String): String =
         "\"" + v.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
+    // Классический режим: тянем сам конфиг подписки (clash-meta YAML) с HWID-заголовками.
+    // Запускаем его как есть — со всеми proxy-group'ами автора (селекторы) и его правилами.
+    // Возвращает "" при ошибке (сеть/HTTP).
+    private fun fetchConfig(url: String, hwid: String): String {
+        return try {
+            val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+            conn.connectTimeout = 8000
+            conn.readTimeout = 15000
+            conn.instanceFollowRedirects = true
+            conn.setRequestProperty("User-Agent", "clash-meta/mihomo")
+            if (hwid.isNotEmpty()) {
+                conn.setRequestProperty("x-hwid", hwid)
+                conn.setRequestProperty("x-device-os", "Android")
+                conn.setRequestProperty("x-ver-os", Build.VERSION.RELEASE)
+                conn.setRequestProperty("x-device-model", Build.MODEL)
+            }
+            val code = conn.responseCode
+            val text = (if (code in 200..299) conn.inputStream else conn.errorStream)
+                ?.bufferedReader()?.use { it.readText() } ?: ""
+            conn.disconnect()
+            if (code in 200..299) text else ""
+        } catch (_: Exception) {
+            ""
+        }
+    }
+
+    // (провайдер-режим, оставлен как справка; классический режим его не использует)
     private fun buildConfig(
         subUrl: String,
         hwid: String,
