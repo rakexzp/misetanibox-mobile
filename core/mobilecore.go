@@ -2,6 +2,7 @@ package mobilecore
 
 import (
 	"fmt"
+	"net/netip"
 	"strings"
 	"sync"
 	"syscall"
@@ -94,6 +95,12 @@ func Start(homeDir, configYAML string, fd int) string {
 	cfg.General.Tun.Stack = C.TunGvisor
 	cfg.General.Tun.AutoRoute = false
 	cfg.General.Tun.AutoDetectInterface = false
+	// Адрес tun-интерфейса ядра ОБЯЗАН совпадать с VpnService.addAddress("172.19.0.1", 30).
+	// Без этого gVisor-нетстек ядра поднимается на дефолтном 198.18.0.1/30 и не считает
+	// 172.19.0.2 (addDnsServer в Kotlin) своим локальным адресом → hijacknутый DNS-запрос
+	// приложения некуда ответить → DNS_PROBE_STARTED («подключено, но DNS не резолвит»).
+	// Плюс дефолт 198.18.0.1 лежит ВНУТРИ fake-ip-range 198.18.0.0/16 (коллизия адресов).
+	cfg.General.Tun.Inet4Address = []netip.Prefix{netip.MustParsePrefix("172.19.0.1/30")}
 	if len(cfg.General.Tun.DNSHijack) == 0 {
 		cfg.General.Tun.DNSHijack = []string{"any:53"}
 	}
