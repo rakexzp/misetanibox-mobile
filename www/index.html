@@ -304,7 +304,7 @@ function toast(msg){
 
 // ---------- определение страны по имени ноды ----------
 const FLAG_NAMES={us:['united states','usa','сша','америк'],gb:['united kingdom','britain','england','uk','британ','англи','лондон'],de:['germany','герман','франкфурт','frankfurt'],nl:['netherlands','нидерланд','амстердам','amsterdam'],fr:['france','франц','париж'],ru:['russia','росси','москв','moscow'],ua:['ukraine','украин'],se:['sweden','швеци'],fi:['finland','финлянд','helsinki'],no:['norway','норвег'],dk:['denmark','дани'],pl:['poland','польш'],ch:['switzerland','швейцар'],at:['austria','австри'],es:['spain','испани'],it:['italy','итали'],pt:['portugal','португал'],tr:['turkey','турци','istanbul'],jp:['japan','япони','tokyo'],hk:['hong kong','гонконг'],sg:['singapore','сингапур'],kr:['korea','корея'],tw:['taiwan','тайван'],cn:['china','китай'],in:['india','инди'],au:['australia','австрал'],ca:['canada','канад'],br:['brazil','бразил'],ae:['emirates','dubai','оаэ','эмират','дубай'],il:['israel','израил'],cz:['czech','чехи','prague'],ro:['romania','румын'],lv:['latvia','латви','riga'],lt:['lithuania','литв'],ee:['estonia','эстони'],kz:['kazakhstan','казахстан'],ge:['georgia','грузи'],am:['armenia','армени'],az:['azerbaijan','азербайдж'],by:['belarus','беларус']};
-const FLAG_CODES=new Set(Object.keys(FLAG_NAMES));
+const FLAG_CODES=new Set(['ae','al','am','ar','at','au','az','bd','be','bg','bh','br','by','ca','ch','cl','cn','cy','cz','de','dk','ee','eg','es','fi','fr','gb','ge','gr','hk','hr','hu','id','ie','il','in','iq','ir','is','it','jp','kg','kr','kw','kz','lk','lt','lu','lv','md','me','mk','mn','mt','mx','my','na','nl','no','np','ph','pk','pl','pt','qa','ro','rs','ru','sa','se','sg','si','sk','th','tj','tr','tw','ua','us','uz','vn','xk','za']); // все флаги из www/flags (эмодзи-детект работает для всех, что есть в бандле)
 function countryCode(name){
   if(!name) return null;
   // эмодзи-флаг
@@ -322,9 +322,21 @@ function countryCode(name){
   for(const tok of lo.split(/[^a-z]+/)){ if(tok==='uk') return 'gb'; if(tok.length===2&&FLAG_CODES.has(tok)) return tok; }
   return null;
 }
+function flagEmoji(name){
+  const arr=Array.from(name||'');
+  for(let i=0;i<arr.length-1;i++){
+    const a=arr[i].codePointAt(0),b=arr[i+1].codePointAt(0);
+    if(a>=0x1f1e6&&a<=0x1f1ff&&b>=0x1f1e6&&b<=0x1f1ff) return arr[i]+arr[i+1];
+  }
+  return '';
+}
 function flagImg(name,cls){
   const c=countryCode(name);
-  return c ? `<img class="${cls}" src="flags/${c}.svg" alt="">` : `<span class="${cls}" style="background:var(--ln)"></span>`;
+  if(c) return `<img class="${cls}" src="flags/${c}.svg" alt="">`;
+  // нет SVG — показываем эмодзи-флаг из имени (Босния, Камбоджа и т.п.)
+  const e=flagEmoji(name);
+  if(e) return `<span class="${cls}" style="background:transparent;display:inline-flex;align-items:center;justify-content:center;font-size:17px;line-height:1">${e}</span>`;
+  return `<span class="${cls}" style="background:var(--ln)"></span>`;
 }
 // Экранирование перед вставкой в DOM. Имена узлов приходят из подписки — то есть
 // снаружи; без экранирования разметка из имени выполнилась бы в WebView, где доступен
@@ -352,7 +364,7 @@ function go(t){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'v0.15.0';
+const BUILD = 'v0.16.0';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
