@@ -95,6 +95,7 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
 .grp-row .t{font-weight:700}
 .node-row{padding-left:44px}
 .node-row .t{font-weight:500}
+.ro-badge{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.04em;color:var(--mut);border:1px solid var(--ln);border-radius:4px;padding:3px 7px;margin-right:6px;white-space:nowrap;flex:none}
 .dbg{margin:12px 24px 0;padding:10px 12px;border:1px solid var(--ln);border-radius:var(--rad);font-family:'JetBrains Mono',monospace;font-size:9.5px;line-height:1.5;color:var(--dim);white-space:pre-wrap;word-break:break-word;max-height:120px;overflow:auto;display:none}
 .dbg.on{display:block}
 .back-row{display:flex;align-items:center;gap:10px;cursor:pointer;margin-bottom:4px}
@@ -364,7 +365,7 @@ function go(t){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'v0.16.0';
+const BUILD = 'v0.17.0';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
@@ -498,7 +499,8 @@ function isGroup(p){ return p && Array.isArray(p.all); }
 function isSelector(p){ return p && String(p.type||'').toLowerCase()==='selector'; }
 // порядок групп берём из GLOBAL.all (мihomo хранит там порядок конфига), GLOBAL прячем
 function orderedGroups(P){
-  const names=Object.keys(P).filter(n=>isGroup(P[n]) && n!=='GLOBAL');
+  // прячем GLOBAL и группы с hidden:true (mihomo помечает служебные — как во FlClash)
+  const names=Object.keys(P).filter(n=>isGroup(P[n]) && n!=='GLOBAL' && !P[n].hidden);
   const gl=(P['GLOBAL']&&Array.isArray(P['GLOBAL'].all))?P['GLOBAL'].all.filter(n=>names.includes(n)):[];
   const order=gl.slice();
   for(const n of names) if(!order.includes(n)) order.push(n);
@@ -529,11 +531,14 @@ function renderProxies(){
   }
   document.getElementById('servers-sub').textContent=order.length+' ГРУПП';
   const ping=n=>{ const d=delays[n]; return d===undefined?'':(d>0?`<span class="ping" style="color:${pingColor(d)}">${d} мс</span>`:`<span class="ping" style="color:var(--bad)">—</span>`); };
+  const GROUP_TAG={selector:'СЕЛЕКТОР',urltest:'АВТО · ПО ПИНГУ',fallback:'ФОЛБЭК',loadbalance:'БАЛАНС',relay:'ЦЕПЬ'};
   let html=`<div class="row" onclick="pingAll()"><div class="grow"><div class="t">Проверить задержки</div><div class="s">ПИНГ ВСЕХ СЕРВЕРОВ</div></div><span class="chev">⟳</span></div>`;
   for(const gn of order){
     const g=P[gn], sel=isSelector(g), open=!!expandedGroups[gn], now=g.now||'';
-    const tag=sel?'СЕЛЕКТОР':String(g.type||'').toUpperCase();
-    html+=`<div class="row grp-row" onclick="toggleGroup('${q(gn)}')">${flagImg(now,'flag')}<div class="grow"><div class="t">${esc(gn)}</div><div class="s">${tag} · ${esc(cleanName(now))||'—'}</div></div><span class="chev">${open?'▴':'▾'}</span></div>`;
+    const type=String(g.type||'').toLowerCase();
+    const tag=GROUP_TAG[type]||type.toUpperCase();
+    const roBadge=sel?'':'<span class="ro-badge">только&nbsp;просмотр</span>';
+    html+=`<div class="row grp-row" onclick="toggleGroup('${q(gn)}')">${flagImg(now,'flag')}<div class="grow"><div class="t">${esc(gn)}</div><div class="s">${tag} · ${esc(cleanName(now))||'—'}</div></div>${roBadge}<span class="chev">${open?'▴':'▾'}</span></div>`;
     if(open){
       html+=g.all.map(n=>{
         const active=n===now;
