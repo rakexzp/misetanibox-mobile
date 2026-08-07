@@ -24,6 +24,7 @@ class VpnPlugin : Plugin() {
     private var pendingSplitApps = arrayOf<String>()
     private var pendingRules = arrayOf<String>()
     private var pendingChains = "[]"
+    private var pendingServiceGroups = arrayOf<String>()
     private var receiver: BroadcastReceiver? = null
 
     override fun load() {
@@ -68,6 +69,13 @@ class VpnPlugin : Plugin() {
         pendingRules = rulesList.toTypedArray()
         // цепочки приходят готовым JSON-массивом [{name, entry}]
         pendingChains = call.getArray("chains", com.getcapacitor.JSArray())?.toString() ?: "[]"
+        // имена select-групп сервисов из конфигуратора селекторов
+        val sgArr = call.getArray("serviceGroups", com.getcapacitor.JSArray())
+        val sgList = ArrayList<String>()
+        for (i in 0 until (sgArr?.length() ?: 0)) {
+            sgArr?.optString(i)?.let { if (it.isNotBlank()) sgList.add(it) }
+        }
+        pendingServiceGroups = sgList.toTypedArray()
         if (pendingSubUrl.isEmpty()) {
             call.reject("нет URL подписки")
             return
@@ -95,7 +103,7 @@ class VpnPlugin : Plugin() {
         // дублируем параметры в prefs, чтобы плитка/виджет/автозапуск могли поднять туннель без WebView
         VpnPrefs.saveLaunchState(
             context, pendingSubUrl, pendingHwid, pendingSplitMode, pendingSplitApps,
-            pendingRules, pendingChains,
+            pendingRules, pendingChains, pendingServiceGroups,
         )
         val i = Intent(context, MihomoVpnService::class.java)
         i.action = MihomoVpnService.ACTION_START
@@ -105,6 +113,7 @@ class VpnPlugin : Plugin() {
         i.putExtra(MihomoVpnService.EXTRA_SPLIT_APPS, pendingSplitApps)
         i.putExtra(MihomoVpnService.EXTRA_RULES, pendingRules)
         i.putExtra(MihomoVpnService.EXTRA_CHAINS, pendingChains)
+        i.putExtra(MihomoVpnService.EXTRA_SERVICE_GROUPS, pendingServiceGroups)
         context.startForegroundService(i)
     }
 

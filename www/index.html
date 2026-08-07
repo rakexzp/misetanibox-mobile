@@ -92,6 +92,18 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
 .sub-btn{flex:1;padding:14px;border-radius:var(--rad);font-weight:600;font-size:14px;cursor:pointer;border:1px solid var(--ln);background:transparent;color:var(--fg)}
 .sub-btn.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
 .list-note{padding:20px 24px;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.06em;color:var(--mut);line-height:1.7}
+.svc-tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px;max-height:44vh;overflow-y:auto}
+.svc-tile{display:flex;align-items:center;gap:8px;padding:11px 12px;border:1px solid var(--ln);border-left-width:3px;border-radius:var(--rad);background:transparent;text-align:left;cursor:pointer;color:var(--fg)}
+.svc-ico{font-size:16px;flex:none}
+.svc-name{flex:1;min-width:0;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.svc-tgt{font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;flex:none}
+.svc-tile.t-proxy{border-left-color:var(--ln)} .svc-tile.t-proxy .svc-tgt{color:var(--mut)}
+.svc-tile.t-selector{border-left-color:var(--fg)} .svc-tile.t-selector .svc-tgt{color:var(--fg)}
+.svc-tile.t-direct{border-left-color:var(--ok)} .svc-tile.t-direct .svc-tgt{color:var(--ok)}
+.svc-tile.t-reject{border-left-color:var(--bad)} .svc-tile.t-reject .svc-tgt{color:var(--bad)}
+.svc-legend{display:flex;gap:14px;margin-top:12px;font-size:11px;flex-wrap:wrap}
+.svc-legend b{font-weight:700} .l-proxy{color:var(--mut)}.l-selector{color:var(--fg)}.l-direct{color:var(--ok)}.l-reject{color:var(--bad)}
+.grp-hdr{padding:16px 24px 6px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.14em;color:var(--mut);border-top:1px solid var(--ln)}
 .dbg{margin:12px 24px 0;padding:10px 12px;border:1px solid var(--ln);border-radius:var(--rad);font-family:'JetBrains Mono',monospace;font-size:9.5px;line-height:1.5;color:var(--dim);white-space:pre-wrap;word-break:break-word;max-height:120px;overflow:auto;display:none}
 .dbg.on{display:block}
 .back-row{display:flex;align-items:center;gap:10px;cursor:pointer;margin-bottom:4px}
@@ -173,6 +185,10 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
       <button class="toggle" id="pr-ads" onclick="togglePreset('ads', this)"></button></div>
     <div class="row"><div class="grow"><div class="t">Локальная сеть напрямую</div><div class="s">РОУТЕР, ПРИНТЕРЫ, NAS</div></div>
       <button class="toggle" id="pr-lan" onclick="togglePreset('lan', this)"></button></div>
+
+    <div class="sec-title" style="font-size:22px;padding-top:22px">Маршруты по сервисам</div>
+    <div class="sec-sub" id="svc-count">ВСЁ ЧЕРЕЗ ОБЩИЙ</div>
+    <div class="row" onclick="openSvcModal()"><div class="grow"><div class="t">Настроить сервисы</div><div class="s">YOUTUBE, TIKTOK, ИГРЫ, СОЦСЕТИ…</div></div><span class="chev">›</span></div>
 
     <div class="sec-title" style="font-size:22px;padding-top:22px">Свои правила</div>
     <div class="sec-sub" id="rules-count">НЕТ СВОИХ ПРАВИЛ</div>
@@ -279,6 +295,19 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
     </div>
   </div>
 
+  <div class="sub-modal hidden" id="svc-modal" onclick="if(event.target===this)closeSvcModal()">
+    <div class="sub-modal-card">
+      <div class="sub-modal-title">Маршруты по сервисам</div>
+      <div class="sub-modal-hint">Тап по плашке меняет режим. «Свой выбор» — у сервиса появится своя группа в СЕРВЕРАХ, где выберешь для него отдельный сервер.</div>
+      <div class="svc-tiles" id="svc-tiles"></div>
+      <div class="svc-legend"><b class="l-proxy">общий</b><b class="l-selector">свой выбор</b><b class="l-direct">напрямую</b><b class="l-reject">блок</b></div>
+      <div class="sub-modal-btns">
+        <button class="sub-btn ghost" onclick="closeSvcModal()">Пропустить</button>
+        <button class="sub-btn primary" onclick="saveSvcModal()">Готово</button>
+      </div>
+    </div>
+  </div>
+
   <nav class="nav">
     <button class="active" data-tab="home" onclick="go('home')"><span class="g">◇</span>ГЛАВНАЯ</button>
     <button data-tab="servers" onclick="go('servers')"><span class="g">≡</span>СЕРВЕРЫ</button>
@@ -343,13 +372,13 @@ function go(t){
   document.getElementById('view-'+t).classList.remove('hidden');
   for(const b of document.querySelectorAll('.nav button')) b.classList.toggle('active', b.dataset.tab===t);
   if(t==='servers'){ connected ? loadProxies() : previewServers(); }
-  if(t==='rules'){ applyPresetUi(); renderRules(); }
+  if(t==='rules'){ applyPresetUi(); renderRules(); renderSvcRow(); }
   if(t==='chains') renderChains();
   if(t==='apps') openAppsScreen();
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'v0.13.0';
+const BUILD = 'v0.14.0';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
@@ -448,10 +477,11 @@ async function toggleConnect(){
   const sm=splitMode();
   const sApps=sm==='off'?[]:[...splitSelected];
   dbg('split='+sm+' apps='+sApps.length);
-  const rulesList = buildRuleList();
+  const svc = buildServiceRouting();
+  const rulesList = svc.rules.concat(buildRuleList()); // сервис-правила выше пресетов
   const chainList = chains();
-  dbg('правил='+rulesList.length+' цепочек='+chainList.length);
-  try{ const r=await Vpn.start({ subUrl: sub, hwid: getHwid(), splitMode: sm, splitApps: sApps, rules: rulesList, chains: chainList }); dbg('start() вернул: '+JSON.stringify(r||{})); }
+  dbg('правил='+rulesList.length+' цепочек='+chainList.length+' сервис-групп='+svc.groups.length);
+  try{ const r=await Vpn.start({ subUrl: sub, hwid: getHwid(), splitMode: sm, splitApps: sApps, rules: rulesList, chains: chainList, serviceGroups: svc.groups }); dbg('start() вернул: '+JSON.stringify(r||{})); }
   catch(e){ setStatusText('○ ОТКЛЮЧЕНО'); dbg('start() REJECT: '+(e&&e.message?e.message:e)); toast('Ошибка старта: '+(e&&e.message?e.message:e)); }
 }
 
@@ -492,13 +522,19 @@ async function loadProxies(){
   }
   try{ localStorage.setItem('mise_lastServers', JSON.stringify({all:g.all, now:g.now})); }catch(e){}
   document.getElementById('servers-sub').textContent=g.all.length+' УЗЛОВ';
-  document.getElementById('server-list').innerHTML=
-    `<div class="row" onclick="pingAll()"><div class="grow"><div class="t">Проверить задержки</div><div class="s">ПИНГ ВСЕХ УЗЛОВ</div></div><span class="chev">⟳</span></div>`+
-    g.all.map(n=>{
-      const active=n===g.now, d=delays[n];
+  const P=r.data.proxies;
+  // группы-селекторы сервисов, реально существующие в ядре
+  const svcGroups=buildServiceRouting().groups.filter(n=>P[n]&&P[n].all&&P[n].all.length);
+  const nodeRows=(grp,gg)=> gg.all.map(n=>{
+      const active=n===gg.now, d=delays[n];
       const ping = d===undefined?'' : (d>0?`<span class="ping" style="color:${pingColor(d)}">${d} мс</span>`:`<span class="ping" style="color:var(--bad)">—</span>`);
-      return `<div class="row" onclick="selectNode('${n.replace(/'/g,"\\'")}')">${flagImg(n,'flag')}<div class="grow"><div class="t">${esc(cleanName(n))}</div><div class="s">${active?'● ВЫБРАН':''}</div></div>${ping}</div>`;
+      return `<div class="row" onclick="selectNode('${grp.replace(/'/g,"\\'")}','${n.replace(/'/g,"\\'")}')">${flagImg(n,'flag')}<div class="grow"><div class="t">${esc(cleanName(n))}</div><div class="s">${active?'● ВЫБРАН':''}</div></div>${ping}</div>`;
     }).join('');
+  let html=`<div class="row" onclick="pingAll()"><div class="grow"><div class="t">Проверить задержки</div><div class="s">ПИНГ ВСЕХ УЗЛОВ</div></div><span class="chev">⟳</span></div>`;
+  if(svcGroups.length) html+=`<div class="grp-hdr">ОСНОВНОЙ ТРАФИК</div>`;
+  html+=nodeRows(GROUP,g);
+  for(const gn of svcGroups) html+=`<div class="grp-hdr">${esc(gn)}</div>`+nodeRows(gn,P[gn]);
+  document.getElementById('server-list').innerHTML=html;
   updateHomeServer(g.now, delays[g.now]);
 }
 // показать сохранённый список серверов, когда туннель выключен
@@ -586,9 +622,9 @@ async function waitForServers(){
     await sleep(1500);
   }
 }
-async function selectNode(name){
-  const r=await core('PUT','/proxies/'+encodeURIComponent(GROUP),{name});
-  if(r.ok){ localStorage.setItem('mise_preferred', name); toast('Сервер: '+cleanName(name)); loadProxies(); }
+async function selectNode(group, name){
+  const r=await core('PUT','/proxies/'+encodeURIComponent(group),{name});
+  if(r.ok){ if(group===GROUP) localStorage.setItem('mise_preferred', name); toast('Сервер: '+cleanName(name)); loadProxies(); }
   else toast('Не удалось выбрать сервер');
 }
 async function pingAll(){
@@ -653,6 +689,65 @@ function buildRuleList(){
   for(const k of presetsOn()) out.push(...(RULE_PRESETS[k]||[]));
   return out;
 }
+
+// ---------- КОНФИГУРАТОР СЕЛЕКТОРОВ (маршруты по сервисам) ----------
+// Каждый сервис можно пустить: общий (через PROXY), «свой выбор» (отдельная select-группа
+// со своим сервером), напрямую или в блок. GEOSITE-категории те же, что в пресетах (geo рабочая).
+const SERVICE_CATALOG=[
+  {key:'youtube',  icon:'▶️',label:'YouTube',   geo:'youtube'},
+  {key:'google',   icon:'🔍',label:'Google',    geo:'google'},
+  {key:'instagram',icon:'📸',label:'Instagram', geo:'instagram'},
+  {key:'tiktok',   icon:'🎵',label:'TikTok',    geo:'tiktok'},
+  {key:'telegram', icon:'✈️',label:'Telegram',  geo:'telegram'},
+  {key:'whatsapp', icon:'💬',label:'WhatsApp',  geo:'whatsapp'},
+  {key:'discord',  icon:'🎮',label:'Discord',   geo:'discord'},
+  {key:'twitter',  icon:'🐦',label:'X/Twitter', geo:'twitter'},
+  {key:'netflix',  icon:'🎬',label:'Netflix',   geo:'netflix'},
+  {key:'spotify',  icon:'🎧',label:'Spotify',   geo:'spotify'},
+  {key:'twitch',   icon:'🎯',label:'Twitch',    geo:'twitch'},
+  {key:'openai',   icon:'🤖',label:'ChatGPT',   geo:'openai'},
+  {key:'steam',    icon:'🕹️',label:'Steam',     geo:'steam'},
+  {key:'reddit',   icon:'📕',label:'Reddit',    geo:'reddit'},
+  {key:'facebook', icon:'📘',label:'Facebook',  geo:'facebook'},
+];
+const SVC_TARGETS=['proxy','selector','direct','reject'];
+const SVC_LABEL={proxy:'общий',selector:'свой выбор',direct:'напрямую',reject:'блок'};
+function services(){ try{ return JSON.parse(localStorage.getItem('mise_services')||'{}'); }catch{ return {}; } }
+function saveServices(m){ localStorage.setItem('mise_services', JSON.stringify(m)); }
+function svcGroupName(s){ return s.icon+' '+s.label; }
+function servicesConfigured(){ const m=services(); return Object.keys(m).filter(k=>m[k]&&m[k]!=='proxy').length; }
+// правила GEOSITE + имена select-групп для сервисов «свой выбор». Правила идут ПЕРЕД
+// пресетами (осознанный выбор сервиса важнее общих пресетов).
+function buildServiceRouting(){
+  const m=services(), rules=[], groups=[];
+  for(const s of SERVICE_CATALOG){
+    const t=m[s.key]; if(!t||t==='proxy') continue;
+    if(t==='selector'){ const g=svcGroupName(s); groups.push(g); rules.push('GEOSITE,'+s.geo+','+g); }
+    else if(t==='direct') rules.push('GEOSITE,'+s.geo+',DIRECT');
+    else if(t==='reject') rules.push('GEOSITE,'+s.geo+',REJECT');
+  }
+  return {rules, groups};
+}
+function openSvcModal(){ renderSvcTiles(); document.getElementById('svc-modal').classList.remove('hidden'); }
+function closeSvcModal(){ document.getElementById('svc-modal').classList.add('hidden'); }
+function renderSvcTiles(){
+  const m=services(), box=document.getElementById('svc-tiles'); if(!box) return;
+  box.innerHTML = SERVICE_CATALOG.map(s=>{
+    const t=m[s.key]||'proxy';
+    return `<button class="svc-tile t-${t}" onclick="cycleSvc('${s.key}',this)"><span class="svc-ico">${s.icon}</span><span class="svc-name">${s.label}</span><span class="svc-tgt">${SVC_LABEL[t]}</span></button>`;
+  }).join('');
+}
+function cycleSvc(key,btn){
+  const m=services(), cur=m[key]||'proxy';
+  const next=SVC_TARGETS[(SVC_TARGETS.indexOf(cur)+1)%SVC_TARGETS.length];
+  if(next==='proxy') delete m[key]; else m[key]=next;
+  saveServices(m);
+  btn.className='svc-tile t-'+next; btn.querySelector('.svc-tgt').textContent=SVC_LABEL[next];
+  renderSvcRow();
+}
+function saveSvcModal(){ closeSvcModal(); renderSvcRow(); if(connected) toast('Применится при следующем подключении'); }
+function renderSvcRow(){ const el=document.getElementById('svc-count'); if(el){ const n=servicesConfigured(); el.textContent = n? n+' СЕРВИСОВ НАСТРОЕНО':'ВСЁ ЧЕРЕЗ ОБЩИЙ'; } }
+
 function applyPresetUi(){
   const on = presetsOn();
   for(const k of ['ru','ads','lan']){
@@ -872,7 +967,7 @@ async function saveSubModal(){
   }
   localStorage.setItem('mise_subUrl', url);
   localStorage.removeItem('mise_lastServers'); localStorage.removeItem('mise_preferred');
-  closeSubModal(); renderSubs(); toast('Подписка сохранена'); go('servers');
+  closeSubModal(); renderSubs(); toast('Подписка сохранена'); go('servers'); openSvcModal();
 }
 
 // ---------- трафик (реальный, из API ядра) ----------

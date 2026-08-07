@@ -34,6 +34,7 @@ class MihomoVpnService : VpnService() {
         const val EXTRA_SPLIT_APPS = "split_apps"
         const val EXTRA_RULES = "rules"
         const val EXTRA_CHAINS = "chains" // JSON: [{"name":"...","entry":"..."}]
+        const val EXTRA_SERVICE_GROUPS = "service_groups" // имена select-групп сервисов (use: main)
         // префикс имени группы-цепочки в списке серверов
         const val CHAIN_PREFIX = "🔗 "
         const val CHANNEL_ID = "misetanibox_vpn"
@@ -55,6 +56,7 @@ class MihomoVpnService : VpnService() {
                 val splitApps = intent?.getStringArrayExtra(EXTRA_SPLIT_APPS) ?: arrayOf()
                 val rules = intent?.getStringArrayExtra(EXTRA_RULES) ?: arrayOf()
                 val chains = parseChains(intent?.getStringExtra(EXTRA_CHAINS))
+                val serviceGroups = intent?.getStringArrayExtra(EXTRA_SERVICE_GROUPS) ?: arrayOf()
                 if (subUrl.isEmpty()) {
                     // сюда попадаем при рестарте сервиса системой с пустым intent
                     stopSelf()
@@ -63,7 +65,7 @@ class MihomoVpnService : VpnService() {
                 // Уведомление обязано появиться сразу после startForegroundService,
                 // поэтому показываем его на главном потоке, а запуск ядра уводим в фон.
                 startForegroundNotif()
-                worker.execute { startTunnel(subUrl, hwid, splitMode, splitApps, rules, chains) }
+                worker.execute { startTunnel(subUrl, hwid, splitMode, splitApps, rules, chains, serviceGroups) }
             }
         }
         // не START_STICKY: иначе система переподнимет сервис с пустым intent и без подписки
@@ -95,6 +97,7 @@ class MihomoVpnService : VpnService() {
         splitApps: Array<String>,
         rules: Array<String>,
         chains: List<Pair<String, String>>,
+        serviceGroups: Array<String>,
     ) {
         if (running) return
         try {
@@ -117,7 +120,7 @@ class MihomoVpnService : VpnService() {
             ownedTunFd = fd // пока ядро не стартовало — дескриптор наш
 
             val homeDir = File(filesDir, "clash").apply { mkdirs() }.absolutePath
-            val config = buildConfig(subUrl, hwid, rules, chains)
+            val config = buildConfig(subUrl, hwid, rules, chains, serviceGroups)
 
             // защита исходящих сокетов ядра (иначе петля через TUN)
             Mobilecore.setProtect(object : SocketProtector {
@@ -292,6 +295,7 @@ class MihomoVpnService : VpnService() {
         hwid: String,
         rules: Array<String>,
         chains: List<Pair<String, String>>, // имя цепочки → входной узел
+        serviceGroups: Array<String>,       // имена select-групп сервисов (конфигуратор селекторов)
     ): String {
         // Заголовки запроса подписки. User-Agent обязателен: панель отдаёт формат конфига
         // по нему, и с «незнакомым» UA вместо clash-YAML приходит другой формат — провайдер
@@ -345,6 +349,22 @@ class MihomoVpnService : VpnService() {
         // Цепочки добавляем в главный селектор, чтобы их можно было выбрать как обычный сервер
         val proxyGroupChains = if (chainNames.isEmpty()) "" else
             "\n    proxies:\n" + chainNames.joinToString("\n") { "      - ${yamlStr(it)}" }
+
+        // Конфигуратор селекторов: на каждый сервис «свой выбор» — своя select-группа
+        // поверх той же подписки (use: main). Правила GEOSITE,<geo>,<имя группы> приходят
+        // в rules и ссылаются на эти группы; узел в группе юзер выбирает во вкладке СЕРВЕРЫ.
+        val serviceGroupsBlock = StringBuilder()
+        for (g in serviceGroups) {
+            if (g.isBlank()) continue
+            serviceGroupsBlock.append(
+                """
+                |  - name: ${yamlStr(g)}
+                |    type: select
+                |    use:
+                |      - main
+                """.trimMargin()
+            ).append("\n")
+        }
 
         val rulesBlock = buildString {
             for (r in rules) {
@@ -400,6 +420,7 @@ class MihomoVpnService : VpnService() {
             |    use:
             |      - main
             |$chainGroups
+            |$serviceGroupsBlock
             |rules:
             |$rulesBlock
         """.trimMargin()
