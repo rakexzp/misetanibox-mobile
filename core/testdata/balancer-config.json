@@ -1,0 +1,182 @@
+// A configuration that uses Xray's client-side load balancer, the way a panel
+// emits one: several outbounds sharing a tag prefix, gathered by a balancer
+// and routed to as a single target.
+[
+  {
+    "remarks": "Germany",
+    "outbounds": [
+      {
+        "tag": "proxy-de-1",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "de1.example.com",
+              "port": 443,
+              "users": [
+                { "id": "b831381d-6324-4d53-ad4f-8cda48b30811", "flow": "xtls-rprx-vision" }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "raw",
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "www.microsoft.com",
+            "fingerprint": "chrome",
+            "publicKey": "jNXHt1yRo0vDuchQlIP6Z0ZvjT3KtzVI-T4E7RoLJS0",
+            "shortId": "6ba85179e30d4fc2"
+          }
+        }
+      },
+      {
+        "tag": "proxy-de-2",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "de2.example.com",
+              "port": 443,
+              "users": [
+                { "id": "b831381d-6324-4d53-ad4f-8cda48b30811", "flow": "xtls-rprx-vision" }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "raw",
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "www.microsoft.com",
+            "fingerprint": "chrome",
+            "publicKey": "jNXHt1yRo0vDuchQlIP6Z0ZvjT3KtzVI-T4E7RoLJS0",
+            "shortId": "6ba85179e30d4fc2"
+          }
+        }
+      },
+      {
+        "tag": "proxy-de-3",
+        "protocol": "trojan",
+        "settings": {
+          "servers": [
+            { "address": "de3.example.com", "port": 443, "password": "correct-horse-battery-staple" }
+          ]
+        },
+        "streamSettings": {
+          "network": "ws",
+          "security": "tls",
+          "tlsSettings": { "serverName": "de3.example.com" },
+          "wsSettings": { "path": "/ws", "host": "de3.example.com" }
+        }
+      },
+      { "tag": "direct", "protocol": "freedom" },
+      { "tag": "block", "protocol": "blackhole" }
+    ],
+    "routing": {
+      "domainStrategy": "IPIfNonMatch",
+      "balancers": [
+        {
+          "tag": "balancer",
+          "selector": ["proxy-de"],
+          "strategy": { "type": "leastPing" }
+        }
+      ],
+      "rules": [
+        { "type": "field", "network": "tcp,udp", "balancerTag": "balancer" }
+      ]
+    }
+  },
+  {
+    "remarks": "Netherlands",
+    "outbounds": [
+      {
+        "tag": "nl-1",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "nl1.example.com",
+              "port": 443,
+              "users": [{ "id": "5c0e2b1a-9f4d-4c8e-8a1b-2d3e4f5a6b7c" }]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "security": "tls",
+          "tlsSettings": { "serverName": "nl1.example.com" },
+          "xhttpSettings": { "path": "/x", "mode": "auto" }
+        }
+      },
+      {
+        "tag": "nl-2",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "nl2.example.com",
+              "port": 443,
+              "users": [{ "id": "5c0e2b1a-9f4d-4c8e-8a1b-2d3e4f5a6b7c" }]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "security": "tls",
+          "tlsSettings": { "serverName": "nl2.example.com" },
+          "xhttpSettings": { "path": "/x", "mode": "auto" }
+        }
+      },
+      {
+        "tag": "spare",
+        "protocol": "shadowsocks",
+        "settings": {
+          "servers": [
+            {
+              "address": "spare.example.com",
+              "port": 8388,
+              "method": "2022-blake3-aes-128-gcm",
+              "password": "OTk4NTY0MzIxMDk4NzY1NA=="
+            }
+          ]
+        }
+      }
+    ],
+    "routing": {
+      "balancers": [
+        {
+          "tag": "nl-balancer",
+          "selector": ["nl-"],
+          "strategy": { "type": "leastLoad" },
+          "fallbackTag": "spare"
+        }
+      ],
+      "rules": [{ "type": "field", "network": "tcp,udp", "balancerTag": "nl-balancer" }]
+    }
+  },
+  {
+    "remarks": "Japan",
+    "outbounds": [
+      {
+        "tag": "proxy",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "jp.example.com",
+              "port": 443,
+              "users": [{ "id": "7d8e9f0a-1b2c-3d4e-5f6a-7b8c9d0e1f2a" }]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "ws",
+          "security": "tls",
+          "tlsSettings": { "serverName": "jp.example.com" },
+          "wsSettings": { "path": "/ws" }
+        }
+      }
+    ]
+  }
+]
