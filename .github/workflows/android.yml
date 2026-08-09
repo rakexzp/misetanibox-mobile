@@ -54,6 +54,14 @@ jobs:
       - name: gomobile init
         run: gomobile init
 
+      # Конвертер подписок (Xray JSON / список ссылок → YAML mihomo) проверяется
+      # тем же парсером, которым ядро читает конфиг: переименованное в mihomo поле
+      # иначе всплывёт уже на телефоне — туннель поднят, трафика нет.
+      # Теги те же, что у сборки: без with_gvisor mihomo не соберёт узел WireGuard.
+      - name: Test mihomo core
+        working-directory: core
+        run: go test -tags with_gvisor,cmfa ./...
+
       - name: Build mihomo core .aar
         working-directory: core
         run: |
@@ -92,9 +100,47 @@ jobs:
           cp node_modules/@capacitor/core/dist/capacitor.js www/capacitor.js
           npx cap sync android
 
+      # Ключ проверяется сразу после декодирования. Без проверки битый keystore
+      # всплывает только на packageRelease — через две минуты сборки и в виде
+      # ASN.1-исключения ("Tag number over 30 is not supported"), по которому
+      # не понять, что именно сломалось: файл, пароль или алиас.
       - name: Decode release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/misetanibox-release.p12"
+          set -euo pipefail
+          ks="$RUNNER_TEMP/misetanibox-release.p12"
+          # tr выкидывает переносы и пробелы: секрет мог быть сохранён обёрнутым
+          # по 76 колонок (обычный base64 без -w 0) или с хвостовым переводом строки
+          printf '%s' "$KEYSTORE_BASE64" | tr -d '[:space:]' | base64 -d > "$ks"
+
+          # PKCS12 — это DER SEQUENCE, он ВСЕГДА начинается с 0x30 (обычно 3082).
+          # Другое начало значит, что в секрете лежит не то: 1f8b — gzip,
+          # fffe — текст в UTF-16 с BOM, efbb — UTF-8 с BOM, 4d00 — вывод
+          # PowerShell, попавший в секрет вместе с кодировкой.
+          head=$(head -c 2 "$ks" | od -An -tx1 | tr -d ' \n')
+          if [ "${head:0:2}" != "30" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 не содержит base64 от PKCS12-хранилища"
+            echo "первые байты: ${head:-пусто} (у валидного p12 — 3082), размер: $(stat -c%s "$ks") Б"
+            echo "пересоздайте секрет одной строкой: base64 -w 0 misetanibox-release.p12"
+            exit 1
+          fi
+
+          # Хранилище открывается своим паролем, и в нём есть нужный алиас.
+          # -alias ловит пустой или переименованный ANDROID_KEY_ALIAS: без него
+          # ключ не найдётся уже на этапе подписи.
+          # Вывод собирается целиком: keytool пишет свои ошибки в stdout, и
+          # редирект только stderr их бы потерял.
+          if ! keytool -list -keystore "$ks" -storetype PKCS12 \
+                 -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" \
+                 > "$RUNNER_TEMP/keytool.log" 2>&1; then
+            echo "::error::keystore не открылся — проверьте ANDROID_KEYSTORE_PASSWORD и ANDROID_KEY_ALIAS"
+            cat "$RUNNER_TEMP/keytool.log"
+            exit 1
+          fi
+          echo "keystore в порядке"
 
       - name: Build release APK (signed)
         working-directory: android

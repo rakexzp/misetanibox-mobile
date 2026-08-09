@@ -19,6 +19,8 @@ object VpnPrefs {
     const val KEY_AUTOSTART = "autostart"
     const val KEY_SUB_URL = "sub_url"
     const val KEY_HWID = "hwid"
+    /** User-Agent запроса подписки: по нему панель выбирает формат ответа */
+    const val KEY_USER_AGENT = "user_agent"
     /** off | bypass | only (см. MihomoVpnService.applySplitTunnel) */
     const val KEY_SPLIT_MODE = "split_mode"
     /** JSON-массив имён пакетов */
@@ -66,6 +68,7 @@ object VpnPrefs {
         ctx: Context,
         subUrl: String,
         hwid: String,
+        userAgent: String,
         splitMode: String,
         splitApps: Array<String>,
         rules: Array<String> = arrayOf(),
@@ -76,6 +79,7 @@ object VpnPrefs {
         prefs(ctx).edit()
             .putString(KEY_SUB_URL, subUrl)
             .putString(KEY_HWID, hwid)
+            .putString(KEY_USER_AGENT, Subscription.userAgentOr(userAgent))
             .putString(KEY_SPLIT_MODE, sm)
             .putString(KEY_SPLIT_APPS, JSONArray(splitApps.toList()).toString())
             .putString(KEY_RULES, JSONArray(rules.toList()).toString())
@@ -110,6 +114,7 @@ object VpnPrefs {
             action = MihomoVpnService.ACTION_START
             putExtra(MihomoVpnService.EXTRA_SUB_URL, p.getString(KEY_SUB_URL, "") ?: "")
             putExtra(MihomoVpnService.EXTRA_HWID, p.getString(KEY_HWID, "") ?: "")
+            putExtra(MihomoVpnService.EXTRA_USER_AGENT, Subscription.userAgentOr(p.getString(KEY_USER_AGENT, "")))
             putExtra(MihomoVpnService.EXTRA_SPLIT_MODE, splitMode(ctx))
             putExtra(MihomoVpnService.EXTRA_SPLIT_APPS, splitAppsArray(ctx))
             putExtra(MihomoVpnService.EXTRA_RULES, jsonStringArray(p.getString(KEY_RULES, "[]")))

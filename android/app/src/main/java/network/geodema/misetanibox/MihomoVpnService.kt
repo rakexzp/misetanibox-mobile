@@ -30,6 +30,7 @@ class MihomoVpnService : VpnService() {
         const val ACTION_STOP = "network.geodema.misetanibox.STOP"
         const val EXTRA_SUB_URL = "sub_url"
         const val EXTRA_HWID = "hwid"
+        const val EXTRA_USER_AGENT = "user_agent"
         const val EXTRA_SPLIT_MODE = "split_mode"
         const val EXTRA_SPLIT_APPS = "split_apps"
         const val EXTRA_RULES = "rules"
@@ -52,6 +53,7 @@ class MihomoVpnService : VpnService() {
             else -> {
                 val subUrl = intent?.getStringExtra(EXTRA_SUB_URL) ?: ""
                 val hwid = intent?.getStringExtra(EXTRA_HWID) ?: ""
+                val userAgent = intent?.getStringExtra(EXTRA_USER_AGENT) ?: ""
                 val splitMode = intent?.getStringExtra(EXTRA_SPLIT_MODE) ?: "off"
                 val splitApps = intent?.getStringArrayExtra(EXTRA_SPLIT_APPS) ?: arrayOf()
                 val rules = intent?.getStringArrayExtra(EXTRA_RULES) ?: arrayOf()
@@ -65,7 +67,7 @@ class MihomoVpnService : VpnService() {
                 // Уведомление обязано появиться сразу после startForegroundService,
                 // поэтому показываем его на главном потоке, а запуск ядра уводим в фон.
                 startForegroundNotif()
-                worker.execute { startTunnel(subUrl, hwid, splitMode, splitApps, rules, chains, serviceGroups) }
+                worker.execute { startTunnel(subUrl, hwid, userAgent, splitMode, splitApps, rules, chains, serviceGroups) }
             }
         }
         // не START_STICKY: иначе система переподнимет сервис с пустым intent и без подписки
@@ -93,6 +95,7 @@ class MihomoVpnService : VpnService() {
     private fun startTunnel(
         subUrl: String,
         hwid: String,
+        userAgent: String,
         splitMode: String,
         splitApps: Array<String>,
         rules: Array<String>,
@@ -103,9 +106,19 @@ class MihomoVpnService : VpnService() {
         try {
             // Классика: сперва тянем конфиг подписки (со всеми селекторами автора). Если не
             // удалось — не поднимаем TUN, иначе интернет пропадёт при мёртвом туннеле.
-            val config = fetchConfig(subUrl, hwid)
-            if (config.isBlank()) {
-                broadcast("error", "не удалось загрузить конфиг подписки — проверьте ссылку и интернет")
+            val fetched = Subscription.fetch(subUrl, hwid, userAgent)
+            if (fetched.body.isBlank()) {
+                val reason = fetched.error ?: "пустой ответ"
+                broadcast("error", "не удалось загрузить конфиг подписки ($reason) — проверьте ссылку и интернет")
+                return
+            }
+            // Подписка может прийти YAML-ом mihomo, JSON-ом Xray или списком ссылок:
+            // формат определяет и приводит к YAML ядро. Ошибка здесь — это «формат не
+            // разобрался», и с ней туннель поднимать нельзя.
+            val config = try {
+                Subscription.convert(fetched.body).config
+            } catch (e: Exception) {
+                broadcast("error", "конфиг подписки не разобран: " + (e.message ?: "неизвестный формат"))
                 return
             }
             val builder = Builder()
@@ -297,48 +310,24 @@ class MihomoVpnService : VpnService() {
     private fun yamlStr(v: String): String =
         "\"" + v.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
-    // Классический режим: тянем сам конфиг подписки (clash-meta YAML) с HWID-заголовками.
-    // Запускаем его как есть — со всеми proxy-group'ами автора (селекторы) и его правилами.
-    // Возвращает "" при ошибке (сеть/HTTP).
-    private fun fetchConfig(url: String, hwid: String): String {
-        return try {
-            val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
-            conn.connectTimeout = 8000
-            conn.readTimeout = 15000
-            conn.instanceFollowRedirects = true
-            conn.setRequestProperty("User-Agent", "clash-meta/mihomo")
-            if (hwid.isNotEmpty()) {
-                conn.setRequestProperty("x-hwid", hwid)
-                conn.setRequestProperty("x-device-os", "Android")
-                conn.setRequestProperty("x-ver-os", Build.VERSION.RELEASE)
-                conn.setRequestProperty("x-device-model", Build.MODEL)
-            }
-            val code = conn.responseCode
-            val text = (if (code in 200..299) conn.inputStream else conn.errorStream)
-                ?.bufferedReader()?.use { it.readText() } ?: ""
-            conn.disconnect()
-            if (code in 200..299) text else ""
-        } catch (_: Exception) {
-            ""
-        }
-    }
-
     // (провайдер-режим, оставлен как справка; классический режим его не использует)
     private fun buildConfig(
         subUrl: String,
         hwid: String,
+        userAgent: String,
         rules: Array<String>,
         chains: List<Pair<String, String>>, // имя цепочки → входной узел
         serviceGroups: Array<String>,       // имена select-групп сервисов (конфигуратор селекторов)
     ): String {
-        // Заголовки запроса подписки. User-Agent обязателен: панель отдаёт формат конфига
-        // по нему, и с «незнакомым» UA вместо clash-YAML приходит другой формат — провайдер
-        // тогда загружается пустым, а трафику некуда идти при живом сервере.
+        // Заголовки запроса подписки. User-Agent определяет формат ответа панели: на
+        // clash-UA приходит YAML, на v2ray/xray-UA — JSON или список ссылок. Провайдер
+        // mihomo умеет только первое, поэтому здесь UA обязан быть clash-совместимым
+        // (в классическом режиме формат разбирает Subscription.convert, и UA свободен).
         // Отступы без маркера "|": строка встраивается в шаблон как |$header,
         // маркер добавляет сам шаблон — иначе в YAML попадут литеральные палки.
         val header = buildString {
             append("    header:\n")
-            append("      User-Agent: [\"clash-meta/mihomo\"]")
+            append("      User-Agent: [${yamlStr(userAgent)}]")
             if (hwid.isNotEmpty()) {
                 append("\n      x-hwid: [\"$hwid\"]")
                 append("\n      x-device-os: [\"Android\"]")
