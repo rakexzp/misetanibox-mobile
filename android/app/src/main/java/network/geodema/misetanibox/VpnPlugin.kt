@@ -20,6 +20,7 @@ class VpnPlugin : Plugin() {
 
     private var pendingSubUrl = ""
     private var pendingHwid = ""
+    private var pendingUserAgent = Subscription.DEFAULT_USER_AGENT
     private var pendingSplitMode = "off"
     private var pendingSplitApps = arrayOf<String>()
     private var pendingRules = arrayOf<String>()
@@ -53,6 +54,7 @@ class VpnPlugin : Plugin() {
     fun start(call: PluginCall) {
         pendingSubUrl = call.getString("subUrl") ?: ""
         pendingHwid = call.getString("hwid") ?: ""
+        pendingUserAgent = Subscription.userAgentOr(call.getString("userAgent"))
         pendingSplitMode = call.getString("splitMode") ?: "off"
         val appsArr = call.getArray("splitApps", com.getcapacitor.JSArray())
         val appsList = ArrayList<String>()
@@ -102,13 +104,14 @@ class VpnPlugin : Plugin() {
     private fun launchService() {
         // дублируем параметры в prefs, чтобы плитка/виджет/автозапуск могли поднять туннель без WebView
         VpnPrefs.saveLaunchState(
-            context, pendingSubUrl, pendingHwid, pendingSplitMode, pendingSplitApps,
+            context, pendingSubUrl, pendingHwid, pendingUserAgent, pendingSplitMode, pendingSplitApps,
             pendingRules, pendingChains, pendingServiceGroups,
         )
         val i = Intent(context, MihomoVpnService::class.java)
         i.action = MihomoVpnService.ACTION_START
         i.putExtra(MihomoVpnService.EXTRA_SUB_URL, pendingSubUrl)
         i.putExtra(MihomoVpnService.EXTRA_HWID, pendingHwid)
+        i.putExtra(MihomoVpnService.EXTRA_USER_AGENT, pendingUserAgent)
         i.putExtra(MihomoVpnService.EXTRA_SPLIT_MODE, pendingSplitMode)
         i.putExtra(MihomoVpnService.EXTRA_SPLIT_APPS, pendingSplitApps)
         i.putExtra(MihomoVpnService.EXTRA_RULES, pendingRules)
@@ -175,35 +178,42 @@ class VpnPlugin : Plugin() {
     }
 
     // Скачать подписку (для превью серверов до подключения) через нативный HTTP,
-    // с clash-UA (панели отдают конфиг по UA) и HWID-заголовками.
+    // с настраиваемым UA (панели отдают формат конфига по UA) и HWID-заголовками.
+    //
+    // Наружу отдаём УЖЕ сконвертированный YAML: интерфейсу не нужно знать, что
+    // панель прислала — Xray JSON, список ссылок или готовый mihomo-конфиг. Формат
+    // и счётчики уходят рядом, чтобы их было видно в подписках и в диагностике.
     @PluginMethod
     fun fetchSub(call: PluginCall) {
         val url = call.getString("url") ?: ""
         val hwid = call.getString("hwid") ?: ""
+        val userAgent = Subscription.userAgentOr(call.getString("userAgent"))
         Thread {
             val ret = JSObject()
-            try {
-                val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
-                conn.connectTimeout = 8000
-                conn.readTimeout = 15000
-                conn.instanceFollowRedirects = true
-                conn.setRequestProperty("User-Agent", "clash-meta/mihomo")
-                if (hwid.isNotEmpty()) {
-                    conn.setRequestProperty("x-hwid", hwid)
-                    conn.setRequestProperty("x-device-os", "Android")
-                    conn.setRequestProperty("x-ver-os", Build.VERSION.RELEASE)
-                    conn.setRequestProperty("x-device-model", Build.MODEL)
-                }
-                val code = conn.responseCode
-                val text = (if (code in 200..299) conn.inputStream else conn.errorStream)
-                    ?.bufferedReader()?.use { it.readText() } ?: ""
-                conn.disconnect()
-                ret.put("status", code)
-                ret.put("body", text)
-            } catch (e: Exception) {
-                ret.put("status", 0)
+            val fetched = Subscription.fetch(url, hwid, userAgent)
+            ret.put("status", fetched.status)
+            if (fetched.body.isBlank()) {
                 ret.put("body", "")
-                ret.put("error", e.message ?: "fetch failed")
+                ret.put("error", fetched.error ?: "пустой ответ")
+                call.resolve(ret)
+                return@Thread
+            }
+            try {
+                val converted = Subscription.convert(fetched.body)
+                ret.put("body", converted.config)
+                ret.put("format", converted.format)
+                ret.put("formatLabel", Subscription.formatLabel(converted.format))
+                ret.put("proxies", converted.proxies)
+                ret.put("groups", converted.groups)
+                ret.put("notes", converted.notes)
+                val names = com.getcapacitor.JSArray()
+                for (n in converted.names) names.put(n)
+                ret.put("names", names)
+            } catch (e: Exception) {
+                // Формат не разобрался — отдаём тело как есть, чтобы превью могло
+                // хотя бы попробовать вытащить имена, и говорим почему.
+                ret.put("body", fetched.body)
+                ret.put("error", e.message ?: "формат подписки не распознан")
             }
             call.resolve(ret)
         }.start()

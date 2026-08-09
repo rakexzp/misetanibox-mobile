@@ -1,0 +1,346 @@
+// A mixed set of Xray Core configurations, used as the converter's example
+// input. Comments and trailing commas are tolerated.
+[
+  {
+    "remarks": "VLESS · REALITY · Vision",
+    "outbounds": [
+      {
+        "tag": "proxy",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "reality.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "b831381d-6324-4d53-ad4f-8cda48b30811",
+                  "flow": "xtls-rprx-vision",
+                  "encryption": "none"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "raw",
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "www.microsoft.com",
+            "fingerprint": "chrome",
+            "publicKey": "jNXHt1yRo0vDuchQlIP6Z0ZvjT3KtzVI-T4E7RoLJS0",
+            "shortId": "6ba85179e30d4fc2",
+            "spiderX": "/"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "remarks": "VLESS · XHTTP · encryption · xmux",
+    "outbounds": [
+      {
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "xhttp.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "5c0e2b1a-9f4d-4c8e-8a1b-2d3e4f5a6b7c",
+                  "encryption": "mlkem768x25519plus.native.1rtt.100-111-1111.75-0-111.50-0-3333.RvI5xPRmxvhVMSxOsCUDIF1uu4sN0-1Z9RXTVIrGYFk"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "xhttp.example.com",
+            "alpn": ["h2", "http/1.1"],
+            "fingerprint": "chrome"
+          },
+          "xhttpSettings": {
+            "host": "xhttp.example.com",
+            "path": "/reliable",
+            "mode": "auto",
+            "extra": {
+              "headers": {
+                "User-Agent": "Mozilla/5.0"
+              },
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "scMaxEachPostBytes": "1000000",
+              "scMinPostsIntervalMs": "30",
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0,
+                "cMaxReuseTimes": "64-128",
+                "hMaxRequestTimes": "800-900",
+                "hMaxReusableSecs": "1800-3000",
+                "hKeepAlivePeriod": 45
+              },
+              "downloadSettings": {
+                "address": "download.example.com",
+                "port": 443,
+                "network": "xhttp",
+                "security": "tls",
+                "tlsSettings": {
+                  "serverName": "download.example.com",
+                  "fingerprint": "chrome"
+                },
+                "xhttpSettings": {
+                  "host": "download.example.com",
+                  "path": "/reliable",
+                  "mode": "stream-up",
+                  "xmux": {
+                    "maxConcurrency": "8-16",
+                    "hKeepAlivePeriod": 30
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  {
+    "remarks": "VLESS · XHTTP · packet-up obfuscation",
+    "outbounds": [
+      {
+        "protocol": "vless",
+        "settings": {
+          "address": "obfs.example.com",
+          "port": 8443,
+          "id": "7d8e9f0a-1b2c-3d4e-5f6a-7b8c9d0e1f2a",
+          "encryption": "none"
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "security": "tls",
+          "tlsSettings": { "serverName": "obfs.example.com" },
+          "xhttpSettings": {
+            "path": "/api",
+            "mode": "packet-up",
+            "xPaddingBytes": "200-800",
+            "xPaddingObfsMode": true,
+            "xPaddingKey": "pad",
+            "xPaddingHeader": "X-Pad",
+            "xPaddingPlacement": "cookie",
+            "xPaddingMethod": "tokenish",
+            "uplinkHTTPMethod": "GET",
+            "sessionIDPlacement": "cookie",
+            "sessionIDKey": "sid",
+            "sessionIDLength": "16-24",
+            "seqPlacement": "header",
+            "seqKey": "X-Seq",
+            "uplinkDataPlacement": "cookie",
+            "uplinkDataKey": "data",
+            "uplinkChunkSize": "4096"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "remarks": "VMess · WebSocket · early data",
+    "outbounds": [
+      {
+        "protocol": "vmess",
+        "settings": {
+          "vnext": [
+            {
+              "address": "ws.example.com",
+              "port": 443,
+              "users": [
+                { "id": "a3482e88-686a-4a58-8126-99c9df64b7bf", "alterId": 0, "security": "auto" }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "ws",
+          "security": "tls",
+          "tlsSettings": { "serverName": "ws.example.com" },
+          "wsSettings": {
+            "path": "/websocket?ed=2560",
+            "headers": { "Host": "ws.example.com" }
+          }
+        },
+        "mux": { "enabled": true, "concurrency": 8, "xudpConcurrency": 16 }
+      }
+    ]
+  },
+  {
+    "remarks": "Trojan · gRPC",
+    "outbounds": [
+      {
+        "protocol": "trojan",
+        "settings": {
+          "servers": [
+            { "address": "trojan.example.com", "port": 443, "password": "correct-horse-battery-staple" }
+          ]
+        },
+        "streamSettings": {
+          "network": "grpc",
+          "security": "tls",
+          "tlsSettings": { "serverName": "trojan.example.com", "alpn": ["h2"] },
+          "grpcSettings": { "serviceName": "GunService", "user_agent": "grpc-go/1.60" }
+        }
+      }
+    ]
+  },
+  {
+    "remarks": "Hysteria2 · Salamander",
+    "outbounds": [
+      {
+        "protocol": "hysteria2",
+        "settings": {
+          "address": "hy2.example.com",
+          "port": 443,
+          "ports": "20000-30000",
+          "hopInterval": "30s",
+          "password": "a-strong-password",
+          "obfs": { "type": "salamander", "password": "obfs-secret" },
+          "bandwidth": { "up": "50 Mbps", "down": "200 Mbps" },
+          "tls": { "sni": "hy2.example.com", "insecure": false, "alpn": ["h3"] }
+        }
+      }
+    ]
+  },
+  {
+    "remarks": "Shadowsocks 2022",
+    "outbounds": [
+      {
+        "protocol": "shadowsocks",
+        "settings": {
+          "servers": [
+            {
+              "address": "ss.example.com",
+              "port": 8388,
+              "method": "2022-blake3-aes-128-gcm",
+              "password": "OTk4NTY0MzIxMDk4NzY1NA==",
+              "uot": true
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "remarks": "VMess · HTTP masquerade over raw TCP",
+    "outbounds": [
+      {
+        "protocol": "vmess",
+        "settings": {
+          "vnext": [
+            {
+              "address": "tcp.example.com",
+              "port": 80,
+              "users": [{ "id": "f2a3b4c5-d6e7-4890-abcd-ef1234567890", "alterId": 0 }]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {
+            "header": {
+              "type": "http",
+              "request": {
+                "method": "GET",
+                "path": ["/"],
+                "headers": { "Host": ["cdn.example.com"] }
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  {
+    "remarks": "WireGuard",
+    "outbounds": [
+      {
+        "protocol": "wireguard",
+        "settings": {
+          "secretKey": "yGXpFcJUXqLL0hV8Cz1234567890abcdefghijklmnA=",
+          "address": ["172.16.0.2/32", "fd00::2/128"],
+          "mtu": 1420,
+          "reserved": [12, 34, 56],
+          "peers": [
+            {
+              "publicKey": "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=",
+              "endpoint": "wg.example.com:51820",
+              "allowedIPs": ["0.0.0.0/0", "::/0"],
+              "keepAlive": 25
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "remarks": "VLESS · HTTPUpgrade",
+    "outbounds": [
+      {
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "hu.example.com",
+              "port": 443,
+              "users": [{ "id": "1a2b3c4d-5e6f-7081-92a3-b4c5d6e7f809", "encryption": "none" }]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "httpupgrade",
+          "security": "tls",
+          "tlsSettings": { "serverName": "hu.example.com" },
+          "httpupgradeSettings": { "path": "/upgrade", "host": "hu.example.com" }
+        }
+      }
+    ]
+  },
+  {
+    "remarks": "Hysteria2 · Xray native form",
+    "outbounds": [
+      {
+        "tag": "proxy",
+        "protocol": "hysteria",
+        "settings": { "address": "hy2x.example.com", "port": 30443, "version": 2 },
+        "streamSettings": {
+          "network": "hysteria",
+          "hysteriaSettings": { "version": 2, "auth": "aaaaaaaa-bbbb-cccc-dddd-123456789fd" },
+          "security": "tls",
+          "tlsSettings": { "serverName": "hy2x.example.com", "alpn": ["h3"] },
+          "finalmask": {
+            "udp": [{ "type": "salamander", "settings": { "password": "obfs-secret" } }],
+            "quicParams": { "congestion": "bbr", "udpHop": { "ports": "20000-30000", "interval": 30 } }
+          }
+        }
+      }
+    ]
+  },
+  {
+    "remarks": "SOCKS5 with credentials",
+    "outbounds": [
+      {
+        "protocol": "socks",
+        "settings": {
+          "servers": [
+            {
+              "address": "127.0.0.1",
+              "port": 1080,
+              "users": [{ "user": "alice", "pass": "s3cret" }]
+            }
+          ]
+        }
+      }
+    ]
+  },
+]

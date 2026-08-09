@@ -54,6 +54,14 @@ jobs:
       - name: gomobile init
         run: gomobile init
 
+      # Конвертер подписок (Xray JSON / список ссылок → YAML mihomo) проверяется
+      # тем же парсером, которым ядро читает конфиг: переименованное в mihomo поле
+      # иначе всплывёт уже на телефоне — туннель поднят, трафика нет.
+      # Теги те же, что у сборки: без with_gvisor mihomo не соберёт узел WireGuard.
+      - name: Test mihomo core
+        working-directory: core
+        run: go test -tags with_gvisor,cmfa ./...
+
       - name: Build mihomo core .aar
         working-directory: core
         run: |
