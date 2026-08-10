@@ -65,6 +65,7 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
 .row .s{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.1em;color:var(--mut);margin-top:2px}
 .row .ping{font-family:'JetBrains Mono',monospace;font-size:12px;flex:none}
 .row .chev{color:var(--mut);font-size:16px;flex:none}
+.ico-badge{background:transparent!important;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--mut);line-height:1}
 .toggle{width:44px;height:26px;border-radius:20px;border:1px solid var(--ln);position:relative;flex:none;background:none;cursor:pointer}
 .toggle::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--dim);transition:.15s}
 .toggle.on{background:var(--fg);border-color:var(--fg)}
@@ -161,9 +162,9 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
   <!-- ПОДПИСКИ -->
   <div class="view hidden" id="view-subs">
     <div class="sec-title">Подписки</div>
-    <div class="sec-sub">MIHOMO YAML · XRAY JSON · ССЫЛКИ</div>
-    <div class="row" id="subs-active" style="display:none" onclick="addSubscription()"><span class="flag" style="background:var(--ok)"></span><div class="grow"><div class="t">Моя подписка</div><div class="s" id="subs-active-sub">АКТИВНА · НАЖМИ ДЛЯ СМЕНЫ</div></div><span class="chev">›</span></div>
-    <div class="row" style="color:var(--dim)" onclick="addSubscription()"><div class="grow"><div class="t">+ Добавить подписку</div><div class="s">ССЫЛКА НА КОНФИГ</div></div></div>
+    <div class="sec-sub" id="subs-count">НЕТ ПОДПИСОК</div>
+    <div id="subs-list"></div>
+    <div class="row" style="color:var(--dim)" onclick="addSubscription()"><div class="grow"><div class="t">+ Добавить подписку</div><div class="s">ТАП ПО ПОДПИСКЕ — СДЕЛАТЬ АКТИВНОЙ</div></div></div>
     <div class="row" onclick="openUaModal()"><div class="grow"><div class="t">User-Agent</div><div class="s" id="ua-sub">CLASH-META/MIHOMO</div></div><span class="chev">›</span></div>
     <div class="list-note">Панель отдаёт формат конфига по User-Agent. Клиент понимает все три: конфиг mihomo (YAML), конфиг Xray (JSON) и список ссылок — конвертация в формат ядра происходит на устройстве.</div>
   </div>
@@ -347,13 +348,20 @@ function flagEmoji(name){
   }
   return '';
 }
+// Служебные политики mihomo — у них нет страны, но пустой серый прямоугольник
+// выглядит как «сломалось». Даём им понятный глиф.
+const POLICY_ICON={'DIRECT':'⇢','REJECT':'✕','REJECT-DROP':'✕','PASS':'⇥','COMPATIBLE':'∅','GLOBAL':'⊕'};
 function flagImg(name,cls){
   const c=countryCode(name);
   if(c) return `<img class="${cls}" src="flags/${c}.svg" alt="">`;
   // нет SVG — показываем эмодзи-флаг из имени (Босния, Камбоджа и т.п.)
   const e=flagEmoji(name);
-  if(e) return `<span class="${cls}" style="background:transparent;display:inline-flex;align-items:center;justify-content:center;font-size:17px;line-height:1">${e}</span>`;
-  return `<span class="${cls}" style="background:var(--ln)"></span>`;
+  if(e) return `<span class="${cls} ico-badge" style="font-size:15px">${e}</span>`;
+  const pol=POLICY_ICON[String(name||'').trim().toUpperCase()];
+  if(pol) return `<span class="${cls} ico-badge">${pol}</span>`;
+  // группы без страны (AI, Торрент, Зарубежные сайты) — буква вместо пустого блока
+  const letter=(cleanName(name||'').trim()[0]||'·').toUpperCase();
+  return `<span class="${cls} ico-badge">${esc(letter)}</span>`;
 }
 // Экранирование перед вставкой в DOM. Имена узлов приходят из подписки — то есть
 // снаружи; без экранирования разметка из имени выполнилась бы в WebView, где доступен
@@ -381,7 +389,7 @@ function go(t){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'v0.18.0';
+const BUILD = 'v0.19.0';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
@@ -418,7 +426,41 @@ function getHwid(){
   if(!h){ h = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())+Math.random()); localStorage.setItem('mise_hwid', h); }
   return h;
 }
-function getSubUrl(){ return localStorage.getItem('mise_subUrl') || ''; }
+// ---------- подписки (несколько, одна активная) ----------
+// mise_subs: [{id,name,url}], mise_subActive: id. mise_subUrl держим в синхроне —
+// на него завязаны нативные prefs (плитка/виджет/автозапуск).
+function subs(){
+  let list=[]; try{ list=JSON.parse(localStorage.getItem('mise_subs')||'[]'); }catch{ list=[]; }
+  if(!Array.isArray(list)) list=[];
+  // миграция со старой одиночной подписки
+  const legacy=localStorage.getItem('mise_subUrl')||'';
+  if(!list.length && legacy){ list=[{id:'s'+Date.now(), name:subName(legacy), url:legacy}]; saveSubs(list); setActiveSub(list[0].id); }
+  return list;
+}
+function saveSubs(list){ localStorage.setItem('mise_subs', JSON.stringify(list)); }
+function subName(url){ try{ return new URL(url).hostname; }catch{ return (url||'').replace(/^https?:\/\//,'').split('/')[0] || 'подписка'; } }
+function activeSubId(){ return localStorage.getItem('mise_subActive')||''; }
+function activeSub(){ const l=subs(); return l.find(s=>s.id===activeSubId()) || l[0] || null; }
+function setActiveSub(id){
+  localStorage.setItem('mise_subActive', id);
+  const s=subs().find(x=>x.id===id);
+  if(s) localStorage.setItem('mise_subUrl', s.url); // синхрон для нативной части
+  // список серверов/формат относятся к прошлой подписке
+  localStorage.removeItem('mise_lastServers'); localStorage.removeItem('mise_preferred'); localStorage.removeItem('mise_subFormat');
+}
+function getSubUrl(){ const s=activeSub(); return s ? s.url : (localStorage.getItem('mise_subUrl')||''); }
+function switchSub(id){
+  if(id===activeSubId()) return;
+  setActiveSub(id); renderSubs();
+  toast(connected ? 'Переподключитесь, чтобы применить' : 'Активная: '+(subs().find(s=>s.id===id)||{}).name);
+}
+function delSub(id, ev){
+  if(ev&&ev.stopPropagation) ev.stopPropagation();
+  const list=subs().filter(s=>s.id!==id);
+  saveSubs(list);
+  if(activeSubId()===id){ if(list.length) setActiveSub(list[0].id); else { localStorage.removeItem('mise_subActive'); localStorage.removeItem('mise_subUrl'); } }
+  renderSubs(); toast('Подписка удалена');
+}
 
 // ---------- User-Agent запроса подписки ----------
 // Панель выбирает формат ответа по UA: на clash-UA приходит YAML, на v2rayNG/Xray —
@@ -700,7 +742,7 @@ async function pingAll(){
 // ---------- подписка (модалка вместо prompt) ----------
 function addSubscription(){ openSubModal(); }
 function openSubModal(){
-  const inp=document.getElementById('sub-input'); inp.value=getSubUrl();
+  const inp=document.getElementById('sub-input'); inp.value=''; // всегда добавляем новую
   document.getElementById('sub-modal').classList.remove('hidden');
   setTimeout(()=>inp.focus(),50);
 }
@@ -732,14 +774,20 @@ function saveUaModal(){
   }
 }
 function renderSubs(){
-  const el=document.getElementById('subs-active');
-  if(el) el.style.display = getSubUrl() ? 'flex' : 'none';
-  // формат панели известен только после загрузки, до этого показываем UA
-  const s=document.getElementById('subs-active-sub');
-  if(s){
-    const f=localStorage.getItem('mise_subFormat');
-    s.textContent = f ? ('АКТИВНА · '+f.toUpperCase()) : 'АКТИВНА · НАЖМИ ДЛЯ СМЕНЫ';
-  }
+  const list=subs(), act=activeSubId(), box=document.getElementById('subs-list');
+  const cnt=document.getElementById('subs-count');
+  if(cnt) cnt.textContent = list.length ? (list.length===1?'1 ПОДПИСКА':list.length+' ПОДПИСОК') : 'НЕТ ПОДПИСОК';
+  if(!box) return;
+  if(!list.length){ box.innerHTML='<div class="list-note">Добавьте ссылку на подписку — mihomo YAML, Xray JSON или список ссылок.</div>'; return; }
+  const fmt=localStorage.getItem('mise_subFormat');
+  box.innerHTML=list.map(s=>{
+    const on=s.id===act;
+    const sub=on ? ('АКТИВНА'+(fmt?' · '+fmt.toUpperCase():'')) : esc(s.url.replace(/^https?:\/\//,'').slice(0,38));
+    return `<div class="row" onclick="switchSub('${q(s.id)}')">`+
+      `<span class="flag" style="background:${on?'var(--ok)':'var(--ln)'}"></span>`+
+      `<div class="grow"><div class="t">${esc(s.name)}</div><div class="s">${sub}</div></div>`+
+      `<span class="chev" onclick="delSub('${q(s.id)}',event)">✕</span></div>`;
+  }).join('');
 }
 
 // ---------- режим маршрутизации ----------
@@ -995,10 +1043,12 @@ async function saveSubModal(){
     if(!txt){ toast('DNS TXT не найден для '+raw); return; }
     url=txt;
   }
-  localStorage.setItem('mise_subUrl', url);
-  localStorage.removeItem('mise_lastServers'); localStorage.removeItem('mise_preferred');
-  localStorage.removeItem('mise_subFormat');
-  closeSubModal(); renderSubs(); toast('Подписка сохранена'); go('servers');
+  const list=subs();
+  const dup=list.find(s=>s.url===url);
+  if(dup){ setActiveSub(dup.id); closeSubModal(); renderSubs(); toast('Уже добавлена — сделал активной'); go('servers'); return; }
+  const item={id:'s'+Date.now(), name:subName(url), url};
+  list.push(item); saveSubs(list); setActiveSub(item.id);
+  closeSubModal(); renderSubs(); toast('Подписка добавлена'); go('servers');
 }
 
 // ---------- трафик (реальный, из API ядра) ----------
