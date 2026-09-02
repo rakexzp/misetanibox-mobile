@@ -28,6 +28,7 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 .app{display:flex;flex-direction:column;height:100dvh}
 .mono{font-family:'JetBrains Mono',monospace}
 .head{display:flex;align-items:center;justify-content:space-between;padding:10px 24px 0;flex:none}
+.app.tab-home .head{display:none}
 .brand{display:flex;align-items:center;gap:9px}
 .brand img{width:22px;height:22px;border-radius:6px;border:1px solid var(--ln)}
 .brand-col{display:flex;flex-direction:column;gap:2px;line-height:1}
@@ -175,7 +176,7 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 <body>
 <div class="app">
   <div class="head">
-    <div class="brand"><img src="logo.png" alt=""><span class="brand-col"><span>MISETANIBOX</span><span class="brand-face" id="brand-face">-_-</span></span></div>
+    <div class="brand"><img src="logo.png" alt=""><span class="brand-col"><span>MISETANIBOX</span><span class="brand-face" data-old-face="1">-_-</span></span></div>
     <div class="head-r"><button class="icon-btn" onclick="toggleTheme()">◐</button></div>
   </div>
 
@@ -438,6 +439,7 @@ function pingColor(p){return (p>0&&p<80)?'var(--ok)':(p<180)?'var(--mid)':'var(-
 let tab='home';
 function go(t){
   tab=t;
+  document.querySelector('.app')?.classList.toggle('tab-home', t==='home');
   for(const v of document.querySelectorAll('.view')) v.classList.add('hidden');
   document.getElementById('view-'+t).classList.remove('hidden');
   for(const b of document.querySelectorAll('.nav button')) b.classList.toggle('active', b.dataset.tab===t);
@@ -605,7 +607,8 @@ function pickWallpaper(){ const i=document.getElementById('wp-input'); if(i) i.c
 function onWallpaperPicked(input){
   const f=input.files&&input.files[0]; if(!f) return;
   const img=new Image(); const url=URL.createObjectURL(f);
-  img.onload=()=>{ const k=Math.min(1,1200/Math.max(img.width,img.height)); const c=document.createElement('canvas'); c.width=Math.round(img.width*k); c.height=Math.round(img.height*k); c.getContext('2d').drawImage(img,0,0,c.width,c.height); try{ localStorage.setItem('mise_wallpaper', c.toDataURL('image/jpeg',.82)); }catch(e){ toast('Картинка слишком большая'); } URL.revokeObjectURL(url); applyWallpaper(); toast('Обои обновлены'); };
+  img.onload=()=>{ const k=Math.min(1,1200/Math.max(img.width,img.height)); const c=document.createElement('canvas'); c.width=Math.round(img.width*k); c.height=Math.round(img.height*k); c.getContext('2d').drawImage(img,0,0,c.width,c.height); try{ localStorage.setItem('mise_wallpaper', c.toDataURL('image/jpeg',.82)); }catch(e){ toast('Картинка слишком большая'); } URL.revokeObjectURL(url); applyWallpaper();
+document.querySelector('.app')?.classList.add('tab-home'); toast('Обои обновлены'); };
   img.src=url; input.value='';
 }
 function applyWallpaper(){ const bg=document.getElementById('cover-bg'); const d=localStorage.getItem('mise_wallpaper'); if(bg&&d) bg.style.backgroundImage='url('+d+')'; }
