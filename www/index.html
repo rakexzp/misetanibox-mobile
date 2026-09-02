@@ -687,6 +687,7 @@ setInterval(blinkFace,5200);
 let connected=false, sessStart=0, sessTimer=null;
 const delays={}; // имя ноды -> пинг
 function setUiConnected(on){
+  if(!on){ _mainSel=null; _providerNodes=null; }
   connected=on;
   setFace(on);
   const big=document.getElementById('connect-big');
@@ -721,7 +722,7 @@ function setHomeState(st){
 }
 function updateCoverMeta(){
   const sub=activeSub(); const n=_proxies?Object.values(_proxies).filter(p=>p&&!Array.isArray(p.all)&&!/^(Direct|Reject|RejectDrop|Pass|Compatible|Dns)$/i.test(p.type||'')).length:0;
-  const txt=(sub?(sub.name||subName(sub.url)):'Без подписки')+(n?' · '+n+' серверов':'');
+  const txt=(sub?(sub.title||sub.name||subName(sub.url)):'Без подписки')+(n?' · '+n+' серверов':'');
   for(const id of ['cover-meta','head-meta']){ const el=document.getElementById(id); if(el) el.textContent=txt; }
 }
 // свои обои: картинка → canvas ≤1200px → localStorage
@@ -798,7 +799,15 @@ function orderedGroups(P){
   return order;
 }
 // «основная» группа для главного экрана — первый селектор (лучше с именем про основной трафик)
+let _mainSel=null, _providerNodes=null;
+async function loadMainSel(){
+  const r=await core('GET','/rules');
+  if(r.ok&&r.data&&Array.isArray(r.data.rules)){ const m=r.data.rules.filter(x=>String(x.type||'').toLowerCase()==='match').pop(); if(m&&m.proxy) _mainSel=m.proxy; }
+  const pr=await core('GET','/providers/proxies');
+  if(pr.ok&&pr.data&&pr.data.providers){ const set=new Set(); for(const [pn,pv] of Object.entries(pr.data.providers)){ if(pn==='default') continue; for(const x of (pv.proxies||[])) if(x&&x.name) set.add(x.name); } _providerNodes=set; }
+}
 function pickMainGroup(P, order){
+  if(_mainSel && P[_mainSel] && Array.isArray(P[_mainSel].all)) return _mainSel;
   const sel=order.filter(n=>isSelector(P[n]));
   return sel.find(n=>/зарубеж|proxy|select|节点|節点|fast|быстр|основ|main/i.test(n)) || sel[0] || order[0] || null;
 }
@@ -810,7 +819,16 @@ async function loadProxies(){
     setServersNote('Ядро ещё поднимается… подождите пару секунд. Если долго — проверьте подписку.');
     return;
   }
-  _proxies=r.data.proxies; renderProxies();
+  _proxies=r.data.proxies;
+  if(!_mainSel||!_providerNodes){ await loadMainSel(); }
+  renderProxies(); cacheServerLists();
+}
+// оффлайн-кэш: состав главного селектора для листа + реальные узлы для цепочек
+function cacheServerLists(){
+  if(!_proxies) return; const main=sheetMain(); if(!main) return; const g=_proxies[main]; if(!g||!Array.isArray(g.all)) return;
+  localStorage.setItem('mise_mainServers', JSON.stringify({all:g.all.filter(n=>{ const p=_proxies[n]||{}; return !NO_EXIT.test(String(p.type||'')); }), now:g.now||''}));
+  const nodes=Object.values(_proxies).filter(p=>p&&p.name&&!Array.isArray(p.all)&&!NO_EXIT.test(String(p.type||''))&&!(_providerNodes&&_providerNodes.has(p.name))).map(p=>p.name);
+  localStorage.setItem('mise_nodeNames', JSON.stringify(nodes));
 }
 function renderProxies(){
   const P=_proxies; if(!P) return;
@@ -904,6 +922,7 @@ async function previewServers(){
   if(r.format){ dbg('формат подписки: '+r.format+' узлов='+(r.proxies||0)+' групп='+(r.groups||0)); localStorage.setItem('mise_subFormat', r.formatLabel||r.format); }
   if(r.notes) dbg('конвертер: '+String(r.notes).replace(/\n/g,' | '));
   if(r.error) dbg('fetchSub: '+r.error);
+  if(r.title){ const l=subs(); const a=l.find(x=>x.id===activeSubId())||l[0]; if(a&&a.title!==r.title){ a.title=r.title; saveSubs(l); } }
   // Для сконвертированных форматов имена приходят от самого конвертера: он уже знает,
   // что узлы балансировщика предлагаются через группу, а не по отдельности.
   // Для сквозного mihomo-конфига их всё ещё приходится вытаскивать из YAML.
@@ -955,7 +974,7 @@ function renderServerSheet(){
     html+=items.map(n=>`<button class="sheet-item${now===n?' active':''}" onclick="sheetPick('${q(main)}','${q(n)}')"><span class="sheet-dot"></span>${flagImg(n,'sheet-flag')}<span class="sheet-name">${esc(cleanName(n))}</span><span class="sheet-ping">${sheetPing(n)}</span></button>`).join('');
     list.innerHTML=html||'<div class="sheet-empty">Нет серверов. Добавьте подписку.</div>';
   }else{
-    const c=safeJson(localStorage.getItem('mise_lastServers')); const names=(c&&c.all)||[]; const pref=getPreferred();
+    const c=safeJson(localStorage.getItem('mise_mainServers'))||safeJson(localStorage.getItem('mise_lastServers')); const names=(c&&c.all)||[]; const pref=getPreferred();
     cnt.textContent=names.length?names.length+' серверов':'—';
     list.innerHTML=names.length?names.map(n=>`<button class="sheet-item${pref===n?' active':''}" onclick="preSelect('${q(n)}');renderServerSheet()"><span class="sheet-dot"></span>${flagImg(n,'sheet-flag')}<span class="sheet-name">${esc(cleanName(n))}</span><span class="sheet-ping">${sheetPing(n)}</span></button>`).join('')
       :'<div class="sheet-empty">'+(getSubUrl()?'Загружаю список серверов…':'Нет серверов. Добавьте подписку.')+'</div>';
@@ -1103,8 +1122,9 @@ function openChainModal(){
 function closeChainModal(){ document.getElementById('chain-modal').classList.add('hidden'); }
 function chainNodeSource(){
   if(connected && _proxies){
-    return Object.values(_proxies).filter(p=>p&&p.name&&!Array.isArray(p.all)&&!NO_EXIT.test(String(p.type||''))).map(p=>p.name);
+    return Object.values(_proxies).filter(p=>p&&p.name&&!Array.isArray(p.all)&&!NO_EXIT.test(String(p.type||''))&&!(_providerNodes&&_providerNodes.has(p.name))).map(p=>p.name);
   }
+  const cached=safeJson(localStorage.getItem('mise_nodeNames')); if(Array.isArray(cached)&&cached.length) return cached;
   const c = safeJson(localStorage.getItem('mise_lastServers'));
   return (c && Array.isArray(c.all)) ? c.all : [];
 }
@@ -1275,7 +1295,7 @@ async function saveSubModal(){
 }
 
 // ---------- трафик (реальный, из API ядра) ----------
-function fmtBytes(b){ if(b<1024) return b+' Б'; const u=['КБ','МБ','ГБ','ТБ']; let i=-1; do{ b/=1024; i++; }while(b>=1024&&i<u.length-1); return b.toFixed(b<10?1:0)+' '+u[i]; }
+function fmtBytes(b){ b=Math.max(0,Number(b)||0); if(b<1024) return Math.round(b)+' Б'; const u=['КБ','МБ','ГБ','ТБ']; let i=-1; do{ b/=1024; i++; }while(b>=1024&&i<u.length-1); return b.toFixed(b<10?1:0)+' '+u[i]; }
 let trafTimer=null, totalUp=0, totalDown=0;
 function startTraffic(){
   if(trafTimer) return;

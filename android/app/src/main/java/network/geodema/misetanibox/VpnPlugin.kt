@@ -210,6 +210,7 @@ class VpnPlugin : Plugin() {
             val ret = JSObject()
             val fetched = Subscription.fetch(url, hwid, userAgent)
             ret.put("status", fetched.status)
+            ret.put("title", fetched.title)
             if (fetched.body.isBlank()) {
                 ret.put("body", "")
                 ret.put("error", fetched.error ?: "пустой ответ")

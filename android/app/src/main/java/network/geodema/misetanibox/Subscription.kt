@@ -24,7 +24,7 @@ object Subscription {
     private const val READ_TIMEOUT_MS = 15000
 
     /** Ответ подписки как есть, до разбора формата. */
-    data class Fetched(val status: Int, val body: String, val error: String?)
+    data class Fetched(val status: Int, val body: String, val error: String?, val title: String = "")
 
     /** Готовый к запуску конфиг плюс то, что стоит показать пользователю. */
     data class Converted(
@@ -53,6 +53,15 @@ object Subscription {
      * Скачать тело подписки. Сеть — нативная, а не из WebView: там CORS и
      * mixed-content, да и заголовки панели требуют своих.
      */
+    // заголовок panel'и: "base64:<...>" или открытый текст
+    private fun profileTitle(raw: String?): String {
+        val v = raw?.trim() ?: return ""
+        if (v.startsWith("base64:", ignoreCase = true)) {
+            return try { String(android.util.Base64.decode(v.substring(7), android.util.Base64.DEFAULT), Charsets.UTF_8).trim() } catch (_: Exception) { "" }
+        }
+        return v
+    }
+
     fun fetch(url: String, hwid: String, userAgent: String): Fetched {
         return try {
             val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
@@ -69,8 +78,9 @@ object Subscription {
             val code = conn.responseCode
             val text = (if (code in 200..299) conn.inputStream else conn.errorStream)
                 ?.bufferedReader()?.use { it.readText() } ?: ""
+            val title = profileTitle(conn.getHeaderField("profile-title"))
             conn.disconnect()
-            Fetched(code, if (code in 200..299) text else "", if (code in 200..299) null else "HTTP $code")
+            Fetched(code, if (code in 200..299) text else "", if (code in 200..299) null else "HTTP $code", title)
         } catch (e: Exception) {
             Fetched(0, "", e.message ?: "не удалось загрузить подписку")
         }
