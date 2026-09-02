@@ -1,8 +1,9 @@
 package mobilecore
 
 import (
-	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 const chainTestCfg = `
@@ -16,23 +17,53 @@ rules:
   - MATCH,MAIN
 `
 
+type testCfg struct {
+	Proxies []map[string]interface{} `yaml:"proxies"`
+	Groups  []struct {
+		Name    string   `yaml:"name"`
+		Proxies []string `yaml:"proxies"`
+	} `yaml:"proxy-groups"`
+}
+
 func TestInjectChainsAndWarp(t *testing.T) {
 	SetChains(`[{"name":"NL-DE-WARP","nodes":["NL","DE","WARP"]},{"name":"bad","nodes":["NL","nope"]}]`)
 	SetWarp(`{"private_key":"a","public_key":"b","address4":"172.16.0.2","address6":"::1","reserved":[1,2,3]}`)
 	defer SetChains("")
 	defer SetWarp("")
-	out := prepareConfig(chainTestCfg)
-	for _, want := range []string{"name: WARP", "name: ⛓ NL-DE-WARP 1", "name: 🔗 NL-DE-WARP", "dialer-proxy: NL", "dialer-proxy: ⛓ NL-DE-WARP 1"} {
-		if !strings.Contains(out, want) {
-			t.Fatalf("нет %q в:\n%s", want, out)
+	var cfg testCfg
+	if err := yaml.Unmarshal([]byte(prepareConfig(chainTestCfg)), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	byName := map[string]map[string]interface{}{}
+	for _, p := range cfg.Proxies {
+		byName[p["name"].(string)] = p
+	}
+	if byName["WARP"] == nil || byName["WARP"]["type"] != "wireguard" {
+		t.Fatal("нет узла WARP")
+	}
+	hop := byName["⛓ NL-DE-WARP 1"]
+	if hop == nil || hop["dialer-proxy"] != "NL" || hop["server"] != "2.2.2.2" {
+		t.Fatalf("промежуточный хоп неверен: %v", hop)
+	}
+	exit := byName["🔗 NL-DE-WARP"]
+	if exit == nil || exit["dialer-proxy"] != "⛓ NL-DE-WARP 1" || exit["type"] != "wireguard" {
+		t.Fatalf("выход неверен: %v", exit)
+	}
+	if byName["🔗 bad"] != nil {
+		t.Fatal("цепочка с несуществующим узлом не должна собираться")
+	}
+	found := false
+	for _, g := range cfg.Groups {
+		if g.Name == "MAIN" {
+			for _, n := range g.Proxies {
+				if n == "🔗 NL-DE-WARP" {
+					found = true
+				}
+			}
 		}
 	}
-	if strings.Contains(out, "🔗 bad") {
-		t.Fatalf("цепочка с несуществующим узлом не должна собираться")
-	}
-	// выход попал в главный селектор (MATCH-политика без прямых узлов)
-	if !strings.Contains(out, "- 🔗 NL-DE-WARP") {
-		t.Fatalf("выход не добавлен в главный селектор:\n%s", out)
+	if !found {
+		t.Fatal("выход не добавлен в главный селектор (MATCH-политику)")
 	}
 }
 

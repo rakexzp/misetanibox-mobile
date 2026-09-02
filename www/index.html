@@ -377,19 +377,7 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
     <div class="row" onclick="appsBack='rules';go('apps')"><div class="grow"><div class="t">Роутинг приложений</div><div class="s" id="split-sub2">РАЗДЕЛЬНЫЙ ТУННЕЛЬ</div></div><span class="chev">›</span></div>
     <div class="row" id="expert-row" onclick="openGroups()" style="display:none"><div class="grow"><div class="t">Селекторы групп</div><div class="s">РЕЖИМ ЭКСПЕРТА · ГРУППЫ ПОДПИСКИ</div></div><span class="chev">›</span></div>
 
-    <div class="row"><div class="grow"><div class="t">Российские сайты напрямую</div><div class="s">RU-АДРЕСА МИМО VPN</div></div>
-      <button class="toggle" id="pr-ru" onclick="togglePreset('ru', this)"></button></div>
-    <div class="row"><div class="grow"><div class="t">Блокировать рекламу</div><div class="s">РЕКЛАМА И ТРЕКЕРЫ</div></div>
-      <button class="toggle" id="pr-ads" onclick="togglePreset('ads', this)"></button></div>
-    <div class="row"><div class="grow"><div class="t">Локальная сеть напрямую</div><div class="s">РОУТЕР, ПРИНТЕРЫ, NAS</div></div>
-      <button class="toggle" id="pr-lan" onclick="togglePreset('lan', this)"></button></div>
-
-    <div class="sec-title" style="font-size:22px;padding-top:22px">Свои правила</div>
-    <div class="sec-sub" id="rules-count">НЕТ СВОИХ ПРАВИЛ</div>
-    <div id="rules-list"></div>
-    <div class="row" style="color:var(--dim)" onclick="openRuleModal()"><div class="grow"><div class="t">+ Добавить правило</div><div class="s">ДОМЕН ИЛИ IP → КУДА</div></div></div>
-
-    <div class="list-note">Правила применяются при следующем подключении. Порядок: свои правила сверху, затем пресеты, в конце — всё остальное через VPN.</div>
+    <div class="list-note">Маршрутизация приходит из подписки: российские сайты, реклама и локальная сеть уже настроены на стороне панели.</div>
   </div>
 
 
@@ -458,30 +446,6 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
       <div class="sub-modal-btns">
         <button class="sub-btn ghost" onclick="closeUaModal()">Отмена</button>
         <button class="sub-btn primary" onclick="saveUaModal()">Сохранить</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="sub-modal hidden" id="rule-modal" onclick="if(event.target===this)closeRuleModal()">
-    <div class="sub-modal-card">
-      <div class="sub-modal-title">Своё правило</div>
-      <div class="sub-modal-hint">Что перехватываем</div>
-      <div class="sub-seg" style="flex-wrap:wrap">
-        <button class="sub-seg-btn active" data-rt="DOMAIN-SUFFIX" onclick="setRuleType(this)">Домен</button>
-        <button class="sub-seg-btn" data-rt="DOMAIN-KEYWORD" onclick="setRuleType(this)">Слово</button>
-        <button class="sub-seg-btn" data-rt="IP-CIDR" onclick="setRuleType(this)">IP</button>
-        <button class="sub-seg-btn" data-rt="PROCESS-NAME" onclick="setRuleType(this)">Приложение</button>
-      </div>
-      <input id="rule-value" class="sub-input" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="например: example.com">
-      <div class="sub-modal-hint">Куда направить</div>
-      <div class="sub-seg">
-        <button class="sub-seg-btn active" data-rtg="PROXY" onclick="setRuleTarget(this)">Через VPN</button>
-        <button class="sub-seg-btn" data-rtg="DIRECT" onclick="setRuleTarget(this)">Мимо VPN</button>
-        <button class="sub-seg-btn" data-rtg="REJECT" onclick="setRuleTarget(this)">Блокировать</button>
-      </div>
-      <div class="sub-modal-btns">
-        <button class="sub-btn ghost" onclick="closeRuleModal()">Отмена</button>
-        <button class="sub-btn primary" onclick="saveRule()">Добавить</button>
       </div>
     </div>
   </div>
@@ -601,7 +565,7 @@ function go(t){
   document.getElementById('view-'+t).classList.remove('hidden');
   for(const b of document.querySelectorAll('.nav button')) b.classList.toggle('active', b.dataset.tab===t);
   if(t==='servers'){ openServerSheet(); return; }
-  if(t==='rules'){ applyPresetUi(); renderRules(); applyModeLabel(); applyExpertUi(); const ss=document.getElementById('split-sub2'), so=document.getElementById('split-sub'); if(ss&&so) ss.textContent=so.textContent; }
+  if(t==='rules'){ applyModeLabel(); applyExpertUi(); const ss=document.getElementById('split-sub2'), so=document.getElementById('split-sub'); if(ss&&so) ss.textContent=so.textContent; }
   if(t==='settings'){ applyExpertUi(); }
   if(t==='chains') renderChains();
   if(t==='apps') openAppsScreen();
@@ -786,10 +750,9 @@ async function toggleConnect(){
   const sm=splitMode();
   const sApps=sm==='off'?[]:[...splitSelected];
   dbg('split='+sm+' apps='+sApps.length);
-  const rulesList = buildRuleList();
   const chainList = chains();
-  dbg('правил='+rulesList.length+' цепочек='+chainList.length);
-  try{ const r=await Vpn.start({ subUrl: sub, hwid: getHwid(), userAgent: getUserAgent(), splitMode: sm, splitApps: sApps, rules: rulesList, chains: chainList, warp: chainUsesWarp()?warpCreds():'' }); dbg('start() вернул: '+JSON.stringify(r||{})); }
+  dbg('цепочек='+chainList.length);
+  try{ const r=await Vpn.start({ subUrl: sub, hwid: getHwid(), userAgent: getUserAgent(), splitMode: sm, splitApps: sApps, chains: chainList, warp: chainUsesWarp()?warpCreds():'' }); dbg('start() вернул: '+JSON.stringify(r||{})); }
   catch(e){ setStatusText('○ ОТКЛЮЧЕНО'); dbg('start() REJECT: '+(e&&e.message?e.message:e)); toast('Ошибка старта: '+(e&&e.message?e.message:e)); }
 }
 
@@ -1102,69 +1065,6 @@ function closeAbout(){ document.getElementById('about-modal').classList.add('hid
 
 // ---------- ПРАВИЛА ----------
 // Пресеты разворачиваются в правила mihomo при сборке конфига.
-const RULE_PRESETS = {
-  ru:  ['GEOIP,RU,DIRECT'],
-  ads: ['GEOSITE,category-ads-all,REJECT'],
-  lan: ['GEOIP,PRIVATE,DIRECT,no-resolve'],
-};
-function presetsOn(){ try{ return JSON.parse(localStorage.getItem('mise_presets')||'["lan"]'); }catch{ return ['lan']; } }
-function customRules(){ try{ return JSON.parse(localStorage.getItem('mise_rules')||'[]'); }catch{ return []; } }
-function saveCustomRules(list){ localStorage.setItem('mise_rules', JSON.stringify(list)); }
-
-// Итоговый список правил: свои — выше пресетов, MATCH дописывает нативная часть.
-function buildRuleList(){
-  const out = [...customRules()];
-  for(const k of presetsOn()) out.push(...(RULE_PRESETS[k]||[]));
-  return out;
-}
-function applyPresetUi(){
-  const on = presetsOn();
-  for(const k of ['ru','ads','lan']){
-    const el = document.getElementById('pr-'+k);
-    if(el) el.classList.toggle('on', on.includes(k));
-  }
-}
-function togglePreset(k, btn){
-  const on = presetsOn();
-  const i = on.indexOf(k);
-  if(i>=0) on.splice(i,1); else on.push(k);
-  localStorage.setItem('mise_presets', JSON.stringify(on));
-  btn.classList.toggle('on');
-  if(connected) toast('Применится при следующем подключении');
-}
-function renderRules(){
-  const list=document.getElementById('rules-list'), cnt=document.getElementById('rules-count');
-  if(!list) return;
-  const rules=customRules();
-  if(cnt) cnt.textContent = rules.length ? rules.length+' СВОИХ ПРАВИЛ' : 'НЕТ СВОИХ ПРАВИЛ';
-  list.innerHTML = rules.map((r,i)=>`<div class="row"><div class="grow"><div class="t" style="font-size:14px">${esc(r.split(',')[1]||'')}</div><div class="rule-line">${esc(r)}</div></div><span class="chev" onclick="delRule(${i})">✕</span></div>`).join('');
-}
-function delRule(i){ const r=customRules(); r.splice(i,1); saveCustomRules(r); renderRules(); if(connected) toast('Применится при следующем подключении'); }
-
-let ruleType='DOMAIN-SUFFIX', ruleTarget='PROXY';
-function openRuleModal(){ ruleType='DOMAIN-SUFFIX'; ruleTarget='PROXY'; document.getElementById('rule-value').value='';
-  document.querySelectorAll('[data-rt]').forEach(b=>b.classList.toggle('active', b.dataset.rt===ruleType));
-  document.querySelectorAll('[data-rtg]').forEach(b=>b.classList.toggle('active', b.dataset.rtg===ruleTarget));
-  document.getElementById('rule-modal').classList.remove('hidden'); }
-function closeRuleModal(){ document.getElementById('rule-modal').classList.add('hidden'); }
-function setRuleType(b){ ruleType=b.dataset.rt; document.querySelectorAll('[data-rt]').forEach(x=>x.classList.toggle('active',x===b));
-  const inp=document.getElementById('rule-value');
-  inp.placeholder = ruleType==='IP-CIDR' ? 'например: 1.2.3.0/24' : (ruleType==='PROCESS-NAME' ? 'например: com.google.chrome' : 'например: example.com'); }
-function setRuleTarget(b){ ruleTarget=b.dataset.rtg; document.querySelectorAll('[data-rtg]').forEach(x=>x.classList.toggle('active',x===b)); }
-function saveRule(){
-  let v=(document.getElementById('rule-value').value||'').trim();
-  if(!v){ toast('Введите значение'); return; }
-  if(v.includes(',')){ toast('Запятые в значении недопустимы'); return; }
-  // для IP-CIDR mihomo требует маску
-  if(ruleType==='IP-CIDR' && !v.includes('/')) v += '/32';
-  let rule = `${ruleType},${v},${ruleTarget}`;
-  if(ruleType==='IP-CIDR') rule += ',no-resolve';
-  const list=customRules(); list.push(rule); saveCustomRules(list);
-  closeRuleModal(); renderRules();
-  if(connected) toast('Применится при следующем подключении');
-}
-
-// ---------- ЦЕПОЧКИ ----------
 function chains(){ try{ return (JSON.parse(localStorage.getItem('mise_chains')||'[]')||[]).filter(c=>c&&Array.isArray(c.nodes)&&c.nodes.length>=2); }catch{ return []; } }
 function saveChains(list){ localStorage.setItem('mise_chains', JSON.stringify(list)); refreshChainsSub(); }
 function refreshChainsSub(){
@@ -1405,7 +1305,6 @@ function toggleTheme(){
 applyTheme();
 applyAccent();
 renderAccents();
-applyPresetUi();
 refreshChainsSub();
 applyModeLabel();
 refreshSplitSub();
