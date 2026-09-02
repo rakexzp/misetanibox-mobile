@@ -78,6 +78,9 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 
 /* НИЖНЯЯ НАВИГАЦИЯ */
 .nav{display:flex;border-top:1px solid var(--ln);flex:none;background:var(--bg)}
+.mode-seg{display:flex;gap:4px;margin:6px 24px 8px;padding:4px;border-radius:12px;background:var(--ln)}
+.mode-seg button{flex:1;min-height:40px;border:none;border-radius:9px;background:transparent;color:var(--dim);font-family:inherit;font-size:13px;font-weight:600}
+.mode-seg button.active{background:var(--fg);color:var(--bg)}
 .nav button{flex:1;padding:12px 0 calc(12px + env(safe-area-inset-bottom));background:none;border:none;color:var(--mut);font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.14em;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px}
 .nav button .g{font-size:15px}
 .nav button.active{color:var(--fg)}
@@ -160,8 +163,9 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 .cover-sub{display:flex;align-items:center;gap:10px;min-width:0}
 .cover-sub-name{font-size:15px;font-weight:600;color:rgba(255,255,255,.92);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
 .cover-sub-ping{font-family:var(--mono);font-size:13px;color:rgba(255,255,255,.7)!important;flex:none;min-width:6ch;text-align:right;font-variant-numeric:tabular-nums}
-.cover-traffic{display:flex;align-items:center;gap:14px;margin-top:-4px;font-family:var(--mono);font-size:12px;color:rgba(255,255,255,.7);letter-spacing:.04em}
-.cover-traffic .tv{display:inline-block;min-width:9ch;font-variant-numeric:tabular-nums}
+.cover-traffic{display:flex;align-items:center;gap:4px;margin-top:-6px;font-family:var(--mono);font-size:12px;color:rgba(255,255,255,.7)}
+.cover-traffic i{font-style:normal;margin-right:2px}
+.cover-traffic .tv{display:inline-block;min-width:11ch;margin-right:10px;font-variant-numeric:tabular-nums}
 .cover-traffic .mode{margin-left:auto;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.14);color:#fff;font-size:11px;letter-spacing:.1em}
 .cover-bar{display:flex;align-items:center;gap:10px}
 .cover-primary{flex:1;min-height:56px;border:none;border-radius:999px;background:#fff;color:#111;font-family:var(--display);font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
@@ -210,7 +214,7 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
     <div class="cover-bg" id="cover-bg"></div><div class="cover-scrim"></div>
     <header class="cover-head">
       <div class="cover-brand-block">
-        <span class="cover-brand">MISETANIBOX <span class="brand-face" id="brand-face">-_-</span></span>
+        <span class="cover-brand">MISETANIBOX</span><span id="brand-face" hidden></span>
         <span class="cover-meta" id="cover-meta">Без подписки</span>
       </div>
       <div class="cover-actions">
@@ -229,7 +233,7 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
       <span class="cover-sub-ping" id="home-ping"></span>
       <span id="status-val" hidden></span><span id="home-meta" hidden></span>
     </div>
-    <div class="cover-traffic"><span>сессия</span><span class="tv" id="sess-data">0 МБ</span><span class="mode" id="mode-lbl" onclick="cycleMode()">ПРАВИЛА</span></div>
+    <div class="cover-traffic"><i>↓</i><span class="tv" id="rate-down">0 B/s</span><i>↑</i><span class="tv" id="rate-up">0 B/s</span><span id="sess-data" hidden></span><span id="mode-lbl" hidden></span></div>
     <div class="cover-bar">
       <button class="cover-primary" id="connect" onclick="toggleConnect()"><span id="connect-big">ПОДКЛЮЧИТЬ</span></button>
       <button class="cover-round" onclick="go('servers')" aria-label="Серверы"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg></button>
@@ -246,6 +250,7 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 
   <!-- СЕРВЕРЫ -->
   <div class="view hidden" id="view-servers">
+    <div class="back-row" onclick="go('rules')" style="padding:22px 24px 0"><span class="bk">‹</span><div class="sec-sub" style="padding:0;margin:0">ПРАВИЛА</div></div>
     <div class="sec-title">Серверы</div>
     <div class="sec-sub" id="servers-sub">НЕ ПОДКЛЮЧЕНО</div>
     <div id="server-list"></div>
@@ -265,6 +270,11 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
   <div class="view hidden" id="view-rules">
     <div class="sec-title">Правила</div>
     <div class="sec-sub">КУДА ПУСКАТЬ ТРАФИК</div>
+    <div class="mode-seg" id="mode-seg">
+      <button data-v="rule" onclick="setModeVal('rule')">Правила</button><button data-v="global" onclick="setModeVal('global')">Глобально</button><button data-v="direct" onclick="setModeVal('direct')">Прямой</button>
+    </div>
+    <div class="row" onclick="go('apps')"><div class="grow"><div class="t">Роутинг приложений</div><div class="s" id="split-sub2">РАЗДЕЛЬНЫЙ ТУННЕЛЬ</div></div><span class="chev">›</span></div>
+    <div class="row" id="expert-row" onclick="openGroups()" style="display:none"><div class="grow"><div class="t">Селекторы групп</div><div class="s">РЕЖИМ ЭКСПЕРТА · ГРУППЫ ПОДПИСКИ</div></div><span class="chev">›</span></div>
 
     <div class="row"><div class="grow"><div class="t">Российские сайты напрямую</div><div class="s">RU-АДРЕСА МИМО VPN</div></div>
       <button class="toggle" id="pr-ru" onclick="togglePreset('ru', this)"></button></div>
@@ -298,6 +308,7 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
     <div class="row"><div class="grow"><div class="t">Режим TUN</div><div class="s">ПОЛНЫЙ ПЕРЕХВАТ ТРАФИКА</div></div><button class="toggle on" onclick="this.classList.toggle('on')"></button></div>
     <div class="row" onclick="go('apps')"><div class="grow"><div class="t">Раздельный туннель</div><div class="s" id="split-sub">ПО ПРИЛОЖЕНИЯМ · ВЫКЛ</div></div><span class="chev">›</span></div>
     <div class="row" onclick="go('chains')"><div class="grow"><div class="t">Цепочки</div><div class="s" id="chains-sub">НЕТ ЦЕПОЧЕК</div></div><span class="chev">›</span></div>
+    <div class="row"><div class="grow"><div class="t">Селекторы групп</div><div class="s">РЕЖИМ ЭКСПЕРТА: ПОКАЗАТЬ ГРУППЫ ПОДПИСКИ В «ПРАВИЛАХ»</div></div><button class="toggle" id="tgl-expert" onclick="toggleExpert(this)"></button></div>
     <div class="row"><div class="grow"><div class="t">Автозапуск</div><div class="s">ПОДНЯТЬ ТУННЕЛЬ ПРИ ВКЛЮЧЕНИИ УСТРОЙСТВА</div></div><button class="toggle" id="tgl-autostart" onclick="toggleAutostart(this)"></button></div>
     <div class="list-note" style="padding:10px 4px 0">Плитка в шторке и виджет на рабочем столе включают VPN одним тапом — добавь их через системное меню.</div>
     <div class="row"><div class="grow"><div class="t">Тема</div><div class="s">ТЁМНАЯ / СВЕТЛАЯ</div></div><span class="chev" onclick="toggleTheme()">◐</span></div>
@@ -311,7 +322,7 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 
   <!-- РАЗДЕЛЬНЫЙ ТУННЕЛЬ ПО ПРИЛОЖЕНИЯМ -->
   <div class="view hidden" id="view-apps">
-    <div class="back-row" onclick="go('settings')"><span class="bk">‹</span><div class="sec-title" style="margin:0">Раздельный туннель</div></div>
+    <div class="back-row" onclick="go('rules')"><span class="bk">‹</span><div class="sec-title" style="margin:0">Раздельный туннель</div></div>
     <div class="sec-sub">КАКИЕ ПРИЛОЖЕНИЯ ИДУТ ЧЕРЕЗ VPN</div>
     <div class="sub-seg" style="margin-top:14px">
       <button class="sub-seg-btn" id="split-off" onclick="setSplitMode('off')">Все через VPN</button>
@@ -328,7 +339,6 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
       <div class="sub-modal-title">Подписка</div>
       <div class="sub-seg">
         <button class="sub-seg-btn active" id="seg-url" onclick="setSubMode('url')">По ссылке</button>
-        <button class="sub-seg-btn" id="seg-dns" onclick="setSubMode('dns')">Через DNS</button>
       </div>
       <div class="sub-modal-hint" id="sub-hint">Ссылка на конфиг: mihomo YAML, Xray JSON или список ссылок</div>
       <input id="sub-input" class="sub-input" type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://...">
@@ -394,7 +404,6 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 
   <nav class="nav">
     <button class="active" data-tab="home" onclick="go('home')"><span class="g">◇</span>ГЛАВНАЯ</button>
-    <button data-tab="servers" onclick="go('servers')"><span class="g">≡</span>СЕРВЕРЫ</button>
     <button data-tab="rules" onclick="go('rules')"><span class="g">§</span>ПРАВИЛА</button>
     <button data-tab="subs" onclick="go('subs')"><span class="g">⊞</span>ПОДПИСКИ</button>
     <button data-tab="settings" onclick="go('settings')"><span class="g">⚙</span>НАСТРОЙКИ</button>
@@ -477,7 +486,8 @@ function go(t){
   document.getElementById('view-'+t).classList.remove('hidden');
   for(const b of document.querySelectorAll('.nav button')) b.classList.toggle('active', b.dataset.tab===t);
   if(t==='servers'){ openServerSheet(); return; }
-  if(t==='rules'){ applyPresetUi(); renderRules(); }
+  if(t==='rules'){ applyPresetUi(); renderRules(); applyModeLabel(); applyExpertUi(); const ss=document.getElementById('split-sub2'), so=document.getElementById('split-sub'); if(ss&&so) ss.textContent=so.textContent; }
+  if(t==='settings'){ applyExpertUi(); }
   if(t==='chains') renderChains();
   if(t==='apps') openAppsScreen();
 }
@@ -683,10 +693,14 @@ function updateHomeServer(name, ping){
   const f=document.getElementById('home-flag'), nm=document.getElementById('home-name'), mt=document.getElementById('home-meta'), pg=document.getElementById('home-ping');
   const hc=document.getElementById('hero-code');
   if(!name){ f.style.display='none'; nm.textContent='Сервер не выбран'; mt.textContent='ПОДПИСКА НЕ ПОДКЛЮЧЕНА'; pg.textContent=''; if(hc) hc.textContent='—'; return; }
-  const c=countryCode(name);
+  // «Авто» для url-test/fallback группы; страна — по реальному выходу (цепочка now)
+  let leaf=name, hops=0; while(_proxies && _proxies[leaf] && _proxies[leaf].now && hops<6){ leaf=_proxies[leaf].now; hops++; }
+  const gt=String((_proxies&&_proxies[name]||{}).type||'').toLowerCase(); const isAuto=(gt==='urltest'||gt==='fallback');
+  const c=countryCode(leaf)||countryCode(name);
   if(c){ f.src='flags/'+c+'.svg'; f.style.display=''; } else f.style.display='none';
-  nm.textContent=cleanName(name); mt.textContent='АКТИВНЫЙ СЕРВЕР';
-  if(hc) hc.textContent = c ? c.toUpperCase() : (/fastest|auto|авто|смарт/i.test(name)?'АВТО':cleanName(name).slice(0,4).toUpperCase());
+  nm.textContent=isAuto?'Авто · быстрейший':cleanName(name); mt.textContent='АКТИВНЫЙ СЕРВЕР';
+  if(ping==null && leaf!==name && delays[leaf]!==undefined) ping=delays[leaf];
+  if(hc) hc.textContent = c ? c.toUpperCase() : (isAuto?'АВТО':cleanName(name).slice(0,4).toUpperCase());
   pg.textContent = (ping&&ping>0) ? ping+' мс' : ''; pg.style.color=ping?pingColor(ping):'';
 }
 
@@ -945,7 +959,12 @@ function renderSubs(){
 // ---------- режим маршрутизации ----------
 const MODES=[{v:'rule',l:'ПРАВИЛА'},{v:'global',l:'ГЛОБАЛЬНО'},{v:'direct',l:'ПРЯМОЙ'}];
 function curMode(){ return localStorage.getItem('mise_mode')||'rule'; }
-function applyModeLabel(){ const m=MODES.find(x=>x.v===curMode())||MODES[0]; const el=document.getElementById('mode-lbl'); if(el) el.textContent=m.l; }
+function setModeVal(v){ localStorage.setItem('mise_mode', v); applyModeLabel(); applyModeToCore(); }
+function isExpert(){ return localStorage.getItem('mise_expert')==='1'; }
+function applyExpertUi(){ const r=document.getElementById('expert-row'); if(r) r.style.display=isExpert()?'':'none'; const t=document.getElementById('tgl-expert'); if(t) t.classList.toggle('on', isExpert()); }
+function toggleExpert(btn){ localStorage.setItem('mise_expert', isExpert()?'0':'1'); applyExpertUi(); }
+function openGroups(){ tab='servers'; for(const v of document.querySelectorAll('.view')) v.classList.add('hidden'); document.getElementById('view-servers').classList.remove('hidden'); document.querySelector('.app')?.classList.remove('tab-home'); connected ? loadProxies() : previewServers(); }
+function applyModeLabel(){ for(const b of document.querySelectorAll('#mode-seg button')) b.classList.toggle('active', b.dataset.v===curMode()); const m=MODES.find(x=>x.v===curMode())||MODES[0]; const el=document.getElementById('mode-lbl'); if(el) el.textContent=m.l; }
 async function applyModeToCore(){
   if(!connected) return;
   await core('PATCH','/configs',{mode:curMode()});
@@ -1167,7 +1186,7 @@ let subMode='url';
 function setSubMode(m){
   subMode=m;
   document.getElementById('seg-url').classList.toggle('active',m==='url');
-  document.getElementById('seg-dns').classList.toggle('active',m==='dns');
+  const sd=document.getElementById('seg-dns'); if(sd) sd.classList.toggle('active',m==='dns');
   const hint=document.getElementById('sub-hint'), inp=document.getElementById('sub-input');
   if(m==='dns'){ hint.textContent='Домен с TXT-записью (обход блокировки адреса)'; inp.placeholder='sub.example.com'; }
   else { hint.textContent='Ссылка на конфиг: mihomo YAML, Xray JSON или список ссылок'; inp.placeholder='https://...'; }
@@ -1214,12 +1233,15 @@ function startTraffic(){
     if(document.hidden) return;
     const r=await core('GET','/connections');
     if(r.ok && r.data){
-      totalUp=r.data.uploadTotal||0; totalDown=r.data.downloadTotal||0;
+      const now=Date.now(); const up=r.data.uploadTotal||0, down=r.data.downloadTotal||0;
+      if(prevTrafT){ const dt=(now-prevTrafT)/1000; const ru=document.getElementById('rate-up'), rd=document.getElementById('rate-down'); if(ru) ru.textContent=fmtBytes(Math.max(0,(up-totalUp)/dt))+'/s'; if(rd) rd.textContent=fmtBytes(Math.max(0,(down-totalDown)/dt))+'/s'; }
+      totalUp=up; totalDown=down; prevTrafT=now;
       const el=document.getElementById('sess-data'); if(el) el.textContent=fmtBytes(totalUp+totalDown);
     }
   }, 3000);
 }
-function stopTraffic(){ clearInterval(trafTimer); trafTimer=null; const el=document.getElementById('sess-data'); if(el) el.textContent='0 Б'; }
+function stopTraffic(){ clearInterval(trafTimer); trafTimer=null; prevTrafT=0; const el=document.getElementById('sess-data'); if(el) el.textContent='0 Б'; for(const id of ['rate-up','rate-down']){ const e=document.getElementById(id); if(e) e.textContent='0 B/s'; } }
+let prevTrafT=0;
 
 // ---------- тема (с сохранением) ----------
 function applyTheme(){ const t=localStorage.getItem('mise_theme'); document.documentElement.setAttribute('data-theme', t==='light'?'light':''); }
