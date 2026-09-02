@@ -123,14 +123,49 @@ class VpnPlugin : Plugin() {
         context.startForegroundService(i)
     }
 
-    // Регистрация WARP-устройства в Cloudflare (один раз), креды хранит JS
+    // Регистрация WARP-устройства в Cloudflare (один раз); ключи — из ядра, HTTP — здесь,
+    // потому что Go-резолвер на Android не умеет системный DNS. Креды хранит JS.
     @PluginMethod
     fun warpRegister(call: PluginCall) {
         Thread {
             try {
-                val creds = mobilecore.Mobilecore.registerWarp()
+                val keys = mobilecore.Mobilecore.warpKeypair().split("\n")
+                val priv = keys[0]; val pub = keys[1]
+                val tos = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
+                    .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }.format(java.util.Date())
+                val payload = org.json.JSONObject()
+                    .put("key", pub).put("install_id", "").put("fcm_token", "").put("tos", tos)
+                    .put("model", "PC").put("type", "Android").put("locale", "en_US").toString()
+                val conn = java.net.URL("https://api.cloudflareclient.com/v0a2158/reg").openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.connectTimeout = 15000
+                conn.readTimeout = 20000
+                conn.doOutput = true
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.setRequestProperty("User-Agent", "okhttp/3.12.1")
+                conn.setRequestProperty("CF-Client-Version", "a-6.30-2158")
+                conn.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
+                val code = conn.responseCode
+                val text = (if (code in 200..299) conn.inputStream else conn.errorStream)?.bufferedReader()?.use { it.readText() } ?: ""
+                conn.disconnect()
+                if (code !in 200..299) throw Exception("Cloudflare вернул HTTP $code")
+                val cfg = org.json.JSONObject(text).getJSONObject("config")
+                val peerKey = cfg.getJSONArray("peers").getJSONObject(0).getString("public_key")
+                val addr = cfg.getJSONObject("interface").getJSONObject("addresses")
+                val clientId = cfg.optString("client_id", "")
+                val reserved = org.json.JSONArray()
+                try {
+                    val cid = android.util.Base64.decode(clientId, android.util.Base64.DEFAULT)
+                    if (cid.size >= 3) for (i in 0 until 3) reserved.put(cid[i].toInt() and 0xff)
+                } catch (_: Exception) {}
+                if (reserved.length() < 3) { reserved.put(0); reserved.put(0); reserved.put(0) }
+                val creds = org.json.JSONObject()
+                    .put("private_key", priv).put("public_key", peerKey)
+                    .put("address4", addr.optString("v4").substringBefore("/"))
+                    .put("address6", addr.optString("v6").substringBefore("/"))
+                    .put("reserved", reserved)
                 val ret = JSObject()
-                ret.put("creds", creds)
+                ret.put("creds", creds.toString())
                 call.resolve(ret)
             } catch (e: Exception) {
                 call.reject(e.message ?: "регистрация WARP не удалась")

@@ -1108,7 +1108,7 @@ async function ensureWarpCreds(){
   if(warpCreds()) return true;
   if(!Vpn||!Vpn.warpRegister){ toast('WARP доступен только в приложении'); return false; }
   toast('Регистрирую WARP…');
-  try{ const r=await Vpn.warpRegister(); if(r&&r.creds){ localStorage.setItem('mise_warp_creds', r.creds); return true; } }
+  try{ const r=await Promise.race([Vpn.warpRegister(), new Promise((_,rej)=>setTimeout(()=>rej(new Error('таймаут')),40000))]); if(r&&r.creds){ localStorage.setItem('mise_warp_creds', r.creds); return true; } }
   catch(e){ toast('WARP: '+(e&&e.message||'не удалось')); }
   return false;
 }

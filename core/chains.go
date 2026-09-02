@@ -1,17 +1,12 @@
 package mobilecore
 
 import (
-	"bytes"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"golang.org/x/crypto/curve25519"
 	"gopkg.in/yaml.v3"
@@ -26,7 +21,6 @@ const (
 	ChainHopPrefix = "⛓ "
 	WarpNodeName   = "WARP"
 
-	warpRegURL = "https://api.cloudflareclient.com/v0a2158/reg"
 	warpServer = "engage.cloudflareclient.com"
 	warpPort   = 2408
 )
@@ -304,70 +298,12 @@ func stripCIDR(addr string) string {
 	return addr
 }
 
-// RegisterWarp — регистрирует WARP-устройство в Cloudflare, возвращает JSON кредов.
-func RegisterWarp() (string, error) {
+// WarpKeypair — пара ключей WireGuard "priv\npub" (регистрацию в Cloudflare делает Kotlin:
+// у Go-резолвера на Android нет /etc/resolv.conf, а системный DNS ему недоступен).
+func WarpKeypair() (string, error) {
 	priv, pub, err := genWGKeypair()
-	if err != nil {
-		return "", fmt.Errorf("генерация ключей: %w", err)
-	}
-	payload, _ := json.Marshal(map[string]interface{}{
-		"key":        pub,
-		"install_id": "",
-		"fcm_token":  "",
-		"tos":        time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
-		"model":      "PC",
-		"type":       "Android",
-		"locale":     "en_US",
-	})
-	req, err := http.NewRequest(http.MethodPost, warpRegURL, bytes.NewReader(payload))
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "okhttp/3.12.1")
-	req.Header.Set("CF-Client-Version", "a-6.30-2158")
-
-	client := &http.Client{Timeout: 20 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("запрос к Cloudflare: %w", err)
-	}
-	defer resp.Body.Close()
-	data, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", fmt.Errorf("Cloudflare вернул HTTP %d", resp.StatusCode)
-	}
-	var reg struct {
-		Config struct {
-			ClientID string `json:"client_id"`
-			Peers    []struct {
-				PublicKey string `json:"public_key"`
-			} `json:"peers"`
-			Interface struct {
-				Addresses struct {
-					V4 string `json:"v4"`
-					V6 string `json:"v6"`
-				} `json:"addresses"`
-			} `json:"interface"`
-		} `json:"config"`
-	}
-	if err := json.Unmarshal(data, &reg); err != nil {
-		return "", fmt.Errorf("разбор ответа Cloudflare: %w", err)
-	}
-	if len(reg.Config.Peers) == 0 || reg.Config.Peers[0].PublicKey == "" {
-		return "", fmt.Errorf("Cloudflare не вернул ключ пира")
-	}
-	reserved := []int{0, 0, 0}
-	if cid, err := base64.StdEncoding.DecodeString(reg.Config.ClientID); err == nil && len(cid) >= 3 {
-		reserved = []int{int(cid[0]), int(cid[1]), int(cid[2])}
-	}
-	creds := WarpCreds{
-		PrivateKey: priv,
-		PublicKey:  reg.Config.Peers[0].PublicKey,
-		Address4:   stripCIDR(reg.Config.Interface.Addresses.V4),
-		Address6:   stripCIDR(reg.Config.Interface.Addresses.V6),
-		Reserved:   reserved,
-	}
-	out, _ := json.Marshal(creds)
-	return string(out), nil
+	return priv + "\n" + pub, nil
 }
