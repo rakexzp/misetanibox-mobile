@@ -200,13 +200,67 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 .sheet-auto{display:inline-flex;color:#fff;flex:none}
 .sheet-auto svg{width:16px;height:16px}
 .sheet-empty{padding:18px 6px;text-align:center;color:rgba(255,255,255,.6);font-size:14px}
+
+/* ВНУТРЕННИЕ СТРАНИЦЫ — ТА ЖЕ ОБЛОЖКА */
+.app{position:relative;background:#0f1013;color:#fff}
+.page-bg{position:absolute;inset:0;background-size:cover;background-position:center;background-image:radial-gradient(120% 70% at 20% 0%,#4a5262 0%,transparent 60%),radial-gradient(90% 60% at 90% 40%,#2b303a 0%,transparent 60%),linear-gradient(160deg,#23262e,#0f1013);filter:grayscale(.85) contrast(.95);opacity:.55;z-index:0}
+.page-scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.6) 0%,rgba(0,0,0,.72) 50%,rgba(0,0,0,.88) 100%);z-index:0}
+.head,.view,.nav{position:relative;z-index:1}
+.app,.app .view{--bg:#0f1013;--fg:#fff;--dim:rgba(255,255,255,.7);--mut:rgba(255,255,255,.5);--ln:rgba(255,255,255,.12)}
+.head{padding:calc(14px + env(safe-area-inset-top)) 22px 0}
+.brand span{font-family:var(--display);font-weight:900;font-size:15px;letter-spacing:-.02em}
+.brand img{display:none}
+.brand-col{display:flex;flex-direction:column;gap:3px}
+.brand .head-meta{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.55)}
+.icon-btn{width:44px;height:44px;border-radius:13px;border:none;background:rgba(255,255,255,.12);color:#fff}
+.view:not(#view-home){padding-bottom:12px}
+.sec-title{padding:22px 22px 2px;font-family:var(--display);font-weight:900;font-size:26px;letter-spacing:-.03em;text-transform:uppercase;color:#fff}
+.sec-sub{padding:0 22px 12px;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:rgba(255,255,255,.55)}
+.view:not(#view-home) .row{margin:0 16px 6px;padding:13px 14px;border:none;border-radius:14px;background:rgba(20,20,22,.78);box-shadow:inset 0 1px 0 rgba(255,255,255,.12);min-height:52px}
+.view:not(#view-home) .row:active{background:rgba(40,40,44,.85)}
+.row .t{font-size:15px;font-weight:600;color:#fff}
+.row .s{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:rgba(255,255,255,.55)}
+.row .chev{color:rgba(255,255,255,.4)}
+.list-note{padding:14px 22px;font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:rgba(255,255,255,.5);line-height:1.6}
+.toggle{position:relative;width:52px;height:32px;border-radius:16px;box-sizing:border-box;border:2px solid rgba(255,255,255,.45);background:transparent;transition:background .2s,border-color .2s}
+.toggle::after{content:"";position:absolute;top:50%;left:6px;width:16px;height:16px;border-radius:50%;background:rgba(255,255,255,.7);transform:translateY(-50%);box-shadow:none;transition:left .2s cubic-bezier(.2,.8,.2,1),width .2s,height .2s,background .2s}
+.toggle.on{background:#fff;border-color:#fff}
+.toggle.on::after{left:24px;width:24px;height:24px;background:#111;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5L20 7'/%3E%3C/svg%3E");background-size:14px;background-position:center;background-repeat:no-repeat}
+.chk{width:20px;height:20px;border:2px solid rgba(255,255,255,.6);border-radius:3px;box-sizing:border-box}
+.chk.on{background:#fff;border-color:#fff;color:#111}
+.mode-seg{margin:6px 16px 10px;background:rgba(120,120,128,.24)}
+.mode-seg button{color:rgba(255,255,255,.85)}
+.mode-seg button.active{background:#fff;color:#111;box-shadow:0 3px 8px rgba(0,0,0,.2)}
+.back-row .bk{color:rgba(255,255,255,.5)}
+.nav{border-top:1px solid rgba(255,255,255,.08);background:rgba(15,16,19,.92)}
+.nav button{color:rgba(255,255,255,.4);font-family:var(--mono)}
+.nav button.active{color:#fff}
+.sub-modal{background:rgba(0,0,0,.45)}
+.sub-modal-card{border:none;border-radius:24px 24px 0 0;background:rgba(20,20,22,.96);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 -16px 50px rgba(0,0,0,.4);padding:14px 22px calc(22px + env(safe-area-inset-bottom))}
+.sub-modal-card::before{content:"";display:block;width:36px;height:5px;border-radius:3px;background:rgba(255,255,255,.35);margin:0 auto 14px}
+.sub-modal-title{font-family:var(--display);font-weight:900;font-size:18px;letter-spacing:-.02em;text-transform:uppercase;color:#fff}
+.sub-modal-hint{font-family:var(--mono);color:rgba(255,255,255,.55)}
+.sub-seg{gap:4px;padding:3px;border-radius:12px;background:rgba(255,255,255,.1)}
+.sub-seg-btn{border:none;border-radius:9px;min-height:40px;color:rgba(255,255,255,.7)}
+.sub-seg-btn.active{background:#fff;color:#111}
+.sub-input{min-height:46px;border:1px solid rgba(255,255,255,.15);border-radius:12px;background:rgba(255,255,255,.08);color:#fff}
+.sub-input:focus{border-color:rgba(255,255,255,.5)}
+.sub-btn{min-height:46px;border:none;border-radius:999px;background:rgba(255,255,255,.12);color:#fff;font-weight:600}
+.sub-btn.primary{background:#fff;color:#111;font-family:var(--display);font-size:12px;letter-spacing:.12em;text-transform:uppercase}
+.apps-search{border:1px solid rgba(255,255,255,.15);border-radius:12px;background:rgba(255,255,255,.08);color:#fff}
+.app-row{border-bottom:1px solid rgba(255,255,255,.08)}
+.app-mono{background:rgba(255,255,255,.12);color:#fff}
+.chain-nodes,.chain-node{border-color:rgba(255,255,255,.1)}
+.chain-node.on{background:rgba(255,255,255,.12)}
+.ro-badge{border-color:rgba(255,255,255,.2);color:rgba(255,255,255,.5)}
+.grp-row{background:rgba(20,20,22,.9)!important}
 </style>
 </head>
 <body>
-<div class="app">
+<div class="app"><div class="page-bg" id="page-bg"></div><div class="page-scrim"></div>
   <div class="head">
-    <div class="brand"><img src="logo.png" alt=""><span class="brand-col"><span>MISETANIBOX</span><span class="brand-face" data-old-face="1">-_-</span></span></div>
-    <div class="head-r"><button class="icon-btn" onclick="toggleTheme()">◐</button></div>
+    <div class="brand"><img src="logo.png" alt=""><span class="brand-col"><span>MISETANIBOX</span><span class="head-meta" id="head-meta">Без подписки</span></span></div>
+    <div class="head-r"><button class="icon-btn" style="display:none" onclick="toggleTheme()">◐</button></div>
   </div>
 
   <!-- ГЛАВНАЯ -->
@@ -311,8 +365,7 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
     <div class="row"><div class="grow"><div class="t">Селекторы групп</div><div class="s">РЕЖИМ ЭКСПЕРТА: ПОКАЗАТЬ ГРУППЫ ПОДПИСКИ В «ПРАВИЛАХ»</div></div><button class="toggle" id="tgl-expert" onclick="toggleExpert(this)"></button></div>
     <div class="row"><div class="grow"><div class="t">Автозапуск</div><div class="s">ПОДНЯТЬ ТУННЕЛЬ ПРИ ВКЛЮЧЕНИИ УСТРОЙСТВА</div></div><button class="toggle" id="tgl-autostart" onclick="toggleAutostart(this)"></button></div>
     <div class="list-note" style="padding:10px 4px 0">Плитка в шторке и виджет на рабочем столе включают VPN одним тапом — добавь их через системное меню.</div>
-    <div class="row"><div class="grow"><div class="t">Тема</div><div class="s">ТЁМНАЯ / СВЕТЛАЯ</div></div><span class="chev" onclick="toggleTheme()">◐</span></div>
-    <div class="row" style="display:block">
+        <div class="row" style="display:block">
       <div class="grow" style="margin-bottom:12px"><div class="t">Оформление</div><div class="s">ЦВЕТ АКЦЕНТА</div></div>
       <div class="accent-row" id="accent-row"></div>
     </div>
@@ -641,9 +694,9 @@ function setHomeState(st){
   updateCoverMeta();
 }
 function updateCoverMeta(){
-  const el=document.getElementById('cover-meta'); if(!el) return;
   const sub=activeSub(); const n=_proxies?Object.values(_proxies).filter(p=>p&&!Array.isArray(p.all)&&!/^(Direct|Reject|RejectDrop|Pass|Compatible|Dns)$/i.test(p.type||'')).length:0;
-  el.textContent=(sub?(sub.name||subName(sub.url)):'Без подписки')+(n?' · '+n+' серверов':'');
+  const txt=(sub?(sub.name||subName(sub.url)):'Без подписки')+(n?' · '+n+' серверов':'');
+  for(const id of ['cover-meta','head-meta']){ const el=document.getElementById(id); if(el) el.textContent=txt; }
 }
 // свои обои: картинка → canvas ≤1200px → localStorage
 function pickWallpaper(){ const i=document.getElementById('wp-input'); if(i) i.click(); }
@@ -653,7 +706,7 @@ function onWallpaperPicked(input){
   img.onload=()=>{ const k=Math.min(1,1200/Math.max(img.width,img.height)); const c=document.createElement('canvas'); c.width=Math.round(img.width*k); c.height=Math.round(img.height*k); c.getContext('2d').drawImage(img,0,0,c.width,c.height); try{ localStorage.setItem('mise_wallpaper', c.toDataURL('image/jpeg',.82)); }catch(e){ toast('Картинка слишком большая'); } URL.revokeObjectURL(url); applyWallpaper(); toast('Обои обновлены'); };
   img.src=url; input.value='';
 }
-function applyWallpaper(){ const bg=document.getElementById('cover-bg'); const d=localStorage.getItem('mise_wallpaper'); if(bg&&d) bg.style.backgroundImage='url('+d+')'; }
+function applyWallpaper(){ const d=localStorage.getItem('mise_wallpaper'); for(const id of ['cover-bg','page-bg']){ const bg=document.getElementById(id); if(bg&&d) bg.style.backgroundImage='url('+d+')'; } }
 applyWallpaper();
 document.querySelector('.app')?.classList.add('tab-home');
 
