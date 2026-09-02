@@ -774,7 +774,7 @@ function updateHomeServer(name, ping){
   if(!name){ f.style.display='none'; nm.textContent='Сервер не выбран'; mt.textContent='ПОДПИСКА НЕ ПОДКЛЮЧЕНА'; pg.textContent=''; if(hc) hc.textContent='—'; return; }
   // «Авто» для url-test/fallback группы; страна — по реальному выходу (цепочка now)
   let leaf=name, hops=0; while(_proxies && _proxies[leaf] && _proxies[leaf].now && hops<6){ leaf=_proxies[leaf].now; hops++; }
-  const gt=String((_proxies&&_proxies[name]||{}).type||'').toLowerCase(); const isAuto=(gt==='urltest'||gt==='fallback');
+  const gt=String((_proxies&&_proxies[name]||{}).type||'').toLowerCase(); const isAuto=(gt==='urltest');
   const c=countryCode(leaf)||countryCode(name);
   if(c){ f.src='flags/'+c+'.svg'; f.style.display=''; } else f.style.display='none';
   nm.textContent=isAuto?'Авто · быстрейший':cleanName(name); mt.textContent='АКТИВНЫЙ СЕРВЕР';
@@ -1108,8 +1108,8 @@ async function ensureWarpCreds(){
   if(warpCreds()) return true;
   if(!Vpn||!Vpn.warpRegister){ toast('WARP доступен только в приложении'); return false; }
   toast('Регистрирую WARP…');
-  try{ const r=await Promise.race([Vpn.warpRegister(), new Promise((_,rej)=>setTimeout(()=>rej(new Error('таймаут')),40000))]); if(r&&r.creds){ localStorage.setItem('mise_warp_creds', r.creds); return true; } }
-  catch(e){ toast('WARP: '+(e&&e.message||'не удалось')); }
+  try{ const r=await Promise.race([Vpn.warpRegister(), new Promise((_,rej)=>setTimeout(()=>rej(new Error('таймаут')),40000))]); if(r&&r.creds){ localStorage.setItem('mise_warp_creds', r.creds); toast('WARP зарегистрирован'); return true; } toast('WARP: пустой ответ'); }
+  catch(e){ toast('WARP: '+(e&&e.message||'не удалось')+(connected?'':' — включи VPN и повтори')); }
   return false;
 }
 function openChainModal(){
@@ -1332,6 +1332,14 @@ initAutostart();
 applyUaSub();
 renderSubs();
 setUiConnected(false);
+// название панели (profile-title) — тянем один раз на старте, без открытия «Подписок»
+async function fetchSubTitle(){
+  const sub=getSubUrl(); if(!sub||!Vpn||!Vpn.fetchSub) return;
+  try{ const r=await Vpn.fetchSub({url:sub, hwid:getHwid(), userAgent:getUserAgent()});
+    if(r&&r.title){ const l=subs(); const a=l.find(x=>x.id===activeSubId())||l[0]; if(a&&a.title!==r.title){ a.title=r.title; saveSubs(l); renderSubs(); } updateCoverMeta(); }
+  }catch{}
+}
+fetchSubTitle();
 // стартовая диагностика окружения
 dbg('старт '+BUILD+' | Cap='+(!!Cap)+' platform='+platform+' native='+isNative+' plugin='+(!!Vpn)+' reg='+(!!(Cap&&Cap.registerPlugin)));
 const vs=document.getElementById('ver-sub'); if(vs) vs.textContent='MISETANIBOX · '+BUILD.toUpperCase();

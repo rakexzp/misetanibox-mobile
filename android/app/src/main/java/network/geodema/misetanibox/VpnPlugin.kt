@@ -136,7 +136,11 @@ class VpnPlugin : Plugin() {
                 val payload = org.json.JSONObject()
                     .put("key", pub).put("install_id", "").put("fcm_token", "").put("tos", tos)
                     .put("model", "PC").put("type", "Android").put("locale", "en_US").toString()
-                val conn = java.net.URL("https://api.cloudflareclient.com/v0a2158/reg").openConnection() as java.net.HttpURLConnection
+                // напрямую из РФ Cloudflare-API не отвечает; своё приложение вне туннеля,
+                // поэтому при поднятом ядре идём через его локальный mixed-port
+                val port = coreMixedPort()
+                val url = java.net.URL("https://api.cloudflareclient.com/v0a2158/reg")
+                val conn = (if (port > 0) url.openConnection(java.net.Proxy(java.net.Proxy.Type.HTTP, java.net.InetSocketAddress("127.0.0.1", port))) else url.openConnection()) as java.net.HttpURLConnection
                 conn.requestMethod = "POST"
                 conn.connectTimeout = 15000
                 conn.readTimeout = 20000
@@ -171,6 +175,17 @@ class VpnPlugin : Plugin() {
                 call.reject(e.message ?: "регистрация WARP не удалась")
             }
         }.start()
+    }
+
+    private fun coreMixedPort(): Int {
+        if (!MihomoVpnService.isRunning) return 0
+        return try {
+            val c = java.net.URL("http://127.0.0.1:9090/configs").openConnection() as java.net.HttpURLConnection
+            c.connectTimeout = 2000; c.readTimeout = 3000
+            val t = c.inputStream.bufferedReader().use { it.readText() }
+            c.disconnect()
+            org.json.JSONObject(t).optInt("mixed-port", 0)
+        } catch (_: Exception) { 0 }
     }
 
     @PluginMethod
