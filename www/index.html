@@ -5,14 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Misetanibox</title>
 <script src="capacitor.js"></script>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
+@font-face{font-family:'Unbounded';font-weight:500 900;font-display:swap;src:url('fonts/unbounded-900-cyr.woff2') format('woff2');unicode-range:U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}
+@font-face{font-family:'Unbounded';font-weight:500 900;font-display:swap;src:url('fonts/unbounded-900-lat.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'JetBrains Mono';font-weight:400;font-display:swap;src:url('fonts/JetBrainsMono-Regular.woff2') format('woff2')}
+@font-face{font-family:'JetBrains Mono';font-weight:700;font-display:swap;src:url('fonts/JetBrainsMono-Bold.woff2') format('woff2')}
 :root{
   --bg:#0A0A0A; --fg:#F4F4F2;
   --dim:rgba(244,244,242,.64); --mut:rgba(244,244,242,.4); --ln:rgba(244,244,242,.16);
   --ok:oklch(.76 .17 150); --mid:oklch(.8 .15 85); --bad:oklch(.68 .21 27);
   --rad:6px;
+  --display:'Unbounded','Arial Black',Impact,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
 }
 :root[data-theme=light]{
   --bg:#F4F4F2; --fg:#0A0A0A;
@@ -20,7 +24,7 @@
 }
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%}
-body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;overflow:hidden}
+body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Segoe UI',system-ui,sans-serif;overflow:hidden}
 .app{display:flex;flex-direction:column;height:100dvh}
 .mono{font-family:'JetBrains Mono',monospace}
 .head{display:flex;align-items:center;justify-content:space-between;padding:10px 24px 0;flex:none}
@@ -55,7 +59,7 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
 .sess .cell .v{font-weight:700;font-size:22px;margin-top:4px}
 
 /* СПИСКИ (серверы/подписки/настройки) */
-.sec-title{padding:26px 24px 4px;font-weight:800;font-size:34px;letter-spacing:-.02em}
+.sec-title{padding:26px 24px 4px;font-family:var(--display);font-weight:900;font-size:26px;letter-spacing:-.03em;text-transform:uppercase}
 .sec-sub{padding:0 24px 10px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.14em;color:var(--mut)}
 .row{display:flex;align-items:center;gap:12px;padding:15px 24px;border-top:1px solid var(--ln);cursor:pointer}
 .row:active{background:var(--ln)}
@@ -72,7 +76,7 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
 .toggle.on::after{left:23px;background:var(--bg)}
 
 /* НИЖНЯЯ НАВИГАЦИЯ */
-.nav{display:flex;border-top:1px solid var(--fg);flex:none}
+.nav{display:flex;border-top:1px solid var(--ln);flex:none;background:var(--bg)}
 .nav button{flex:1;padding:12px 0 calc(12px + env(safe-area-inset-bottom));background:none;border:none;color:var(--mut);font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.14em;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px}
 .nav button .g{font-size:15px}
 .nav button.active{color:var(--fg)}
@@ -82,7 +86,7 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
 .sub-modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;z-index:50}
 .sub-modal.hidden{display:none}
 .sub-modal-card{width:100%;background:var(--bg);border-top:1px solid var(--fg);padding:26px 24px calc(26px + env(safe-area-inset-bottom))}
-.sub-modal-title{font-weight:800;font-size:26px;letter-spacing:-.02em}
+.sub-modal-title{font-family:var(--display);font-weight:900;font-size:20px;letter-spacing:-.02em;text-transform:uppercase}
 .sub-seg{display:flex;gap:8px;margin-top:14px}
 .sub-seg-btn{flex:1;padding:10px;border:1px solid var(--ln);border-radius:var(--rad);background:transparent;color:var(--mut);font-size:13px;font-weight:600;cursor:pointer}
 .sub-seg-btn.active{background:var(--fg);color:var(--bg);border-color:var(--fg)}
@@ -119,6 +123,53 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
 .chain-node.on{background:var(--ln)}
 .chain-node .t{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rule-line{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim)}
+
+/* ГЛАВНАЯ — ОБЛОЖКА */
+#view-home{position:relative;display:flex;flex-direction:column;gap:12px;padding:calc(18px + env(safe-area-inset-top)) 22px 22px;color:#fff;background:#0f1013;overflow:hidden}
+#view-home.hidden{display:none}
+.cover-bg{position:absolute;inset:0;background-size:cover;background-position:center;background-image:radial-gradient(120% 70% at 20% 0%,#4a5262 0%,transparent 60%),radial-gradient(90% 60% at 90% 40%,#2b303a 0%,transparent 60%),linear-gradient(160deg,#23262e,#0f1013);transition:filter .5s,opacity .5s}
+#view-home:not(.on) .cover-bg{filter:grayscale(.85) contrast(.95);opacity:.75}
+.cover-scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.55) 0%,rgba(0,0,0,.15) 28%,rgba(0,0,0,.3) 55%,rgba(0,0,0,.85) 100%)}
+.cover-head,.cover-hero,.cover-sub,.cover-traffic,.cover-bar,.cover-spacer,#dbg{position:relative}
+.cover-head{display:flex;align-items:flex-start;justify-content:space-between}
+.cover-brand-block{display:flex;flex-direction:column;gap:4px;min-width:0}
+.cover-brand{font-family:var(--display);font-size:15px;font-weight:900;letter-spacing:-.02em;display:flex;align-items:baseline;gap:10px}
+.cover-brand .brand-face{font-family:var(--mono);font-size:11px;color:rgba(255,255,255,.55)}
+.cover-brand .brand-face.online{color:#fff}
+.cover-meta{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:rgba(255,255,255,.7);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cover-actions{display:flex;gap:6px;flex:none}
+.cover-icon{width:44px;height:44px;border-radius:13px;border:none;background:rgba(255,255,255,.12);color:#fff;display:flex;align-items:center;justify-content:center}
+.cover-icon:active{transform:scale(.95)}
+.cover-icon svg{width:19px;height:19px}
+.cover-spacer{flex:1}
+.cover-hero{display:flex;flex-direction:column;gap:2px;align-items:flex-start}
+.hero-line{display:block;animation:hero-in .55s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i)*90ms)}
+@keyframes hero-in{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.hero-code,.hero-timer{font-family:var(--display);font-weight:900;font-size:clamp(48px,15vw,64px);line-height:.92;letter-spacing:-.04em;text-transform:uppercase;color:#fff;white-space:nowrap}
+.hero-code{display:flex;align-items:center;gap:12px}
+.hero-flag{width:.62em;height:.46em;border-radius:.08em;object-fit:cover;box-shadow:0 2px 10px rgba(0,0,0,.35)}
+.hero-timer{font-family:var(--mono);font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+#view-home:not(.on) .hero-code,#view-home:not(.on) .hero-timer{color:rgba(255,255,255,.45)}
+.shine-text{display:inline-block}
+#view-home.on .shine-text{background:linear-gradient(105deg,#fff 0%,#fff 38%,rgba(255,255,255,.45) 50%,#fff 62%,#fff 100%);background-size:260% 100%;background-position:120% 0;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:#fff;animation:shine-sweep 1.2s cubic-bezier(.2,.8,.2,1) .35s both,shine-idle 9s linear 3s infinite}
+@keyframes shine-sweep{from{background-position:120% 0}to{background-position:-40% 0}}
+@keyframes shine-idle{0%,82%{background-position:120% 0}100%{background-position:-40% 0}}
+#view-home.busy .hero-timer .shine-text{background:linear-gradient(105deg,rgba(255,255,255,.55) 0%,rgba(255,255,255,.55) 35%,#fff 50%,rgba(255,255,255,.55) 65%,rgba(255,255,255,.55) 100%);background-size:260% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;animation:timer-shimmer 1.6s linear infinite}
+@keyframes timer-shimmer{from{background-position:120% 0}to{background-position:-40% 0}}
+.cover-sub{display:flex;align-items:center;gap:10px;min-width:0}
+.cover-sub-name{font-size:15px;font-weight:600;color:rgba(255,255,255,.92);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+.cover-sub-ping{font-family:var(--mono);font-size:13px;color:rgba(255,255,255,.7)!important;flex:none;min-width:6ch;text-align:right;font-variant-numeric:tabular-nums}
+.cover-traffic{display:flex;align-items:center;gap:14px;margin-top:-4px;font-family:var(--mono);font-size:12px;color:rgba(255,255,255,.7);letter-spacing:.04em}
+.cover-traffic .tv{display:inline-block;min-width:9ch;font-variant-numeric:tabular-nums}
+.cover-traffic .mode{margin-left:auto;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.14);color:#fff;font-size:11px;letter-spacing:.1em}
+.cover-bar{display:flex;align-items:center;gap:10px}
+.cover-primary{flex:1;min-height:56px;border:none;border-radius:999px;background:#fff;color:#111;font-family:var(--display);font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
+#view-home:not(.on) .cover-primary{background:transparent;color:#fff;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.9)}
+.cover-primary:active{transform:scale(.97)}
+.cover-round{width:56px;height:56px;border:none;border-radius:50%;background:rgba(255,255,255,.14);color:#fff;display:flex;align-items:center;justify-content:center;flex:none}
+.cover-round svg{width:26px;height:26px}
+#view-home .dbg{margin:0}
+@media (prefers-reduced-motion:reduce){.hero-line,.shine-text{animation:none!important}}
 </style>
 </head>
 <body>
@@ -130,26 +181,34 @@ body{background:var(--bg);color:var(--fg);font-family:'Inter Tight',sans-serif;o
 
   <!-- ГЛАВНАЯ -->
   <div class="view" id="view-home">
-    <div class="status-blk">
-      <div class="status-lbl">СТАТУС</div>
-      <div class="status-val" id="status-val">○ ОТКЛЮЧЕНО</div>
+    <div class="cover-bg" id="cover-bg"></div><div class="cover-scrim"></div>
+    <header class="cover-head">
+      <div class="cover-brand-block">
+        <span class="cover-brand">MISETANIBOX <span class="brand-face" id="brand-face">-_-</span></span>
+        <span class="cover-meta" id="cover-meta">Без подписки</span>
+      </div>
+      <div class="cover-actions">
+        <button class="cover-icon" onclick="pickWallpaper()" aria-label="Свои обои"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></button>
+        <button class="cover-icon" onclick="go('settings')" aria-label="Настройки"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+      </div>
+    </header>
+    <input type="file" id="wp-input" accept="image/*" hidden onchange="onWallpaperPicked(this)">
+    <div class="cover-spacer"></div>
+    <div class="cover-hero" id="cover-hero">
+      <span class="hero-line hero-code" style="--i:0"><img class="hero-flag" id="home-flag" src="" alt="" style="display:none"><span class="shine-text" id="hero-code">—</span></span>
+      <span class="hero-line hero-timer" style="--i:1"><span class="shine-text" id="sess-time">00:00</span></span>
     </div>
-    <div class="connect" id="connect" onclick="toggleConnect()">
-      <div class="big" id="connect-big">ПОДКЛЮ-<br>ЧИТЬСЯ</div>
-      <div class="sub"><span>ТАП — ЗАПУСК ТУННЕЛЯ</span><span id="mode-lbl" onclick="event.stopPropagation();cycleMode()">ПРАВИЛА</span></div>
+    <div class="cover-sub" onclick="go('servers')">
+      <span class="cover-sub-name shine-text" id="home-name">Сервер не выбран</span>
+      <span class="cover-sub-ping" id="home-ping"></span>
+      <span id="status-val" hidden></span><span id="home-meta" hidden></span>
+    </div>
+    <div class="cover-traffic"><span>сессия</span><span class="tv" id="sess-data">0 МБ</span><span class="mode" id="mode-lbl" onclick="cycleMode()">ПРАВИЛА</span></div>
+    <div class="cover-bar">
+      <button class="cover-primary" id="connect" onclick="toggleConnect()"><span id="connect-big">ПОДКЛЮЧИТЬ</span></button>
+      <button class="cover-round" onclick="go('servers')" aria-label="Серверы"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg></button>
     </div>
     <div id="dbg" class="dbg" onclick="copyDbg()"></div>
-    <div class="server-blk" onclick="go('servers')">
-      <div class="l">
-        <img class="flag" id="home-flag" src="" alt="" style="display:none">
-        <div><div class="name" id="home-name">Не выбран</div><div class="meta" id="home-meta">ПОДПИСКА НЕ ПОДКЛЮЧЕНА</div></div>
-      </div>
-      <div class="ping" id="home-ping"></div>
-    </div>
-    <div class="sess">
-      <div class="cell"><div class="k">СЕССИЯ</div><div class="v" id="sess-time">00:00</div></div>
-      <div class="cell" style="text-align:right"><div class="k">ТРАФИК</div><div class="v" id="sess-data">0 МБ</div></div>
-    </div>
   </div>
 
   <!-- СЕРВЕРЫ -->
@@ -509,7 +568,7 @@ function setUiConnected(on){
   const big=document.getElementById('connect-big');
   const sv=document.getElementById('status-val');
   if(on){
-    big.innerHTML='ОТКЛЮ-<br>ЧИТЬСЯ'; sv.textContent='● ПОДКЛЮЧЕНО'; sv.style.color='var(--ok)';
+    big.textContent='ОТКЛЮЧИТЬ'; sv.textContent='● ПОДКЛЮЧЕНО'; setHomeState('on');
     if(!sessTimer){ sessStart=Date.now(); sessTimer=setInterval(()=>{
       const s=Math.floor((Date.now()-sessStart)/1000);
       document.getElementById('sess-time').textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
@@ -520,14 +579,37 @@ function setUiConnected(on){
     waitForServers();
     setTimeout(applyModeToCore, 2500);
   }else{
-    big.innerHTML='ПОДКЛЮ-<br>ЧИТЬСЯ'; sv.textContent='○ ОТКЛЮЧЕНО'; sv.style.color='';
+    big.textContent='ПОДКЛЮЧИТЬ'; sv.textContent='○ ОТКЛЮЧЕНО'; setHomeState('off');
     clearInterval(sessTimer); sessTimer=null; document.getElementById('sess-time').textContent='00:00';
     stopTraffic();
     updateHomeServer('', null);
     renderCachedServers();
   }
 }
-function setStatusText(t){ const sv=document.getElementById('status-val'); if(sv) sv.textContent=t; }
+function setStatusText(t){ const sv=document.getElementById('status-val'); if(sv) sv.textContent=t; if(/ПОДКЛЮЧЕНИЕ/.test(t)) setHomeState('busy'); }
+// состояние обложки: on / off / busy (+перезапуск бликов)
+function setHomeState(st){
+  const h=document.getElementById('view-home'); if(!h) return;
+  h.classList.toggle('on', st==='on'); h.classList.toggle('busy', st==='busy');
+  const hero=document.getElementById('cover-hero'); if(hero){ hero.style.animation='none'; for(const l of hero.querySelectorAll('.hero-line')){ l.style.animation='none'; void l.offsetWidth; l.style.animation=''; } }
+  const big=document.getElementById('connect-big'); if(big && st==='busy') big.textContent='ПОДКЛЮЧАЮ…';
+  updateCoverMeta();
+}
+function updateCoverMeta(){
+  const el=document.getElementById('cover-meta'); if(!el) return;
+  const sub=activeSub(); const n=_proxies?Object.values(_proxies).filter(p=>p&&!Array.isArray(p.all)&&!/^(Direct|Reject|RejectDrop|Pass|Compatible|Dns)$/i.test(p.type||'')).length:0;
+  el.textContent=(sub?(sub.name||subName(sub.url)):'Без подписки')+(n?' · '+n+' серверов':'');
+}
+// свои обои: картинка → canvas ≤1200px → localStorage
+function pickWallpaper(){ const i=document.getElementById('wp-input'); if(i) i.click(); }
+function onWallpaperPicked(input){
+  const f=input.files&&input.files[0]; if(!f) return;
+  const img=new Image(); const url=URL.createObjectURL(f);
+  img.onload=()=>{ const k=Math.min(1,1200/Math.max(img.width,img.height)); const c=document.createElement('canvas'); c.width=Math.round(img.width*k); c.height=Math.round(img.height*k); c.getContext('2d').drawImage(img,0,0,c.width,c.height); try{ localStorage.setItem('mise_wallpaper', c.toDataURL('image/jpeg',.82)); }catch(e){ toast('Картинка слишком большая'); } URL.revokeObjectURL(url); applyWallpaper(); toast('Обои обновлены'); };
+  img.src=url; input.value='';
+}
+function applyWallpaper(){ const bg=document.getElementById('cover-bg'); const d=localStorage.getItem('mise_wallpaper'); if(bg&&d) bg.style.backgroundImage='url('+d+')'; }
+applyWallpaper();
 
 async function toggleConnect(){
   dbg('тап connect | native='+isNative+' plugin='+(!!Vpn)+' hasStart='+(!!(Vpn&&Vpn.start)));
@@ -563,10 +645,12 @@ if(Vpn && Vpn.addListener){
 // ---------- серверы из API ядра ----------
 function updateHomeServer(name, ping){
   const f=document.getElementById('home-flag'), nm=document.getElementById('home-name'), mt=document.getElementById('home-meta'), pg=document.getElementById('home-ping');
-  if(!name){ f.style.display='none'; nm.textContent='Не выбран'; mt.textContent='ПОДПИСКА НЕ ПОДКЛЮЧЕНА'; pg.textContent=''; return; }
+  const hc=document.getElementById('hero-code');
+  if(!name){ f.style.display='none'; nm.textContent='Сервер не выбран'; mt.textContent='ПОДПИСКА НЕ ПОДКЛЮЧЕНА'; pg.textContent=''; if(hc) hc.textContent='—'; return; }
   const c=countryCode(name);
   if(c){ f.src='flags/'+c+'.svg'; f.style.display=''; } else f.style.display='none';
   nm.textContent=cleanName(name); mt.textContent='АКТИВНЫЙ СЕРВЕР';
+  if(hc) hc.textContent = c ? c.toUpperCase() : (/fastest|auto|авто|смарт/i.test(name)?'АВТО':cleanName(name).slice(0,4).toUpperCase());
   pg.textContent = (ping&&ping>0) ? ping+' мс' : ''; pg.style.color=ping?pingColor(ping):'';
 }
 
