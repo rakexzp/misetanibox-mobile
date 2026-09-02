@@ -254,6 +254,26 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 .chain-node.on{background:rgba(255,255,255,.12)}
 .ro-badge{border-color:rgba(255,255,255,.2);color:rgba(255,255,255,.5)}
 .grp-row{background:rgba(20,20,22,.9)!important}
+
+/* подстраницы со стрелкой назад */
+.back-row{padding:18px 16px 2px;margin:0;gap:12px}
+.back-row .bk{width:40px;height:40px;flex:none;display:flex;align-items:center;justify-content:center;border-radius:12px;background:rgba(255,255,255,.12);color:#fff;font-size:26px;line-height:1;padding-bottom:3px;box-sizing:border-box}
+.back-row .sec-title{padding:0;font-size:22px;line-height:1.1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.back-row .sec-sub{padding:0}
+#view-apps .sec-sub{padding-left:68px}
+#view-apps .sub-seg{margin:10px 16px 0}
+#view-apps .list-note{padding:12px 22px 6px!important}
+.apps-search{display:block;width:calc(100% - 32px);margin:6px 16px 8px;padding:13px 14px;box-sizing:border-box;font-family:var(--mono);font-size:13px}
+.apps-search::placeholder{color:rgba(255,255,255,.4)}
+.app-list{margin:0 16px 12px;padding:2px 12px;border-radius:14px;background:rgba(20,20,22,.78);box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}
+.app-list>.list-note{padding:14px 4px}
+.app-row{padding:11px 2px;border-bottom:1px solid rgba(255,255,255,.08)}
+.app-row:last-child{border-bottom:none}
+.app-mono{border-radius:10px;font-family:var(--display);font-weight:900;font-size:14px}
+.app-row .grow{flex:1 1 auto;min-width:0}
+.app-row .t{font-size:15px}
+.app-row .s{font-family:var(--mono);color:rgba(255,255,255,.5)}
+.split-off .app-list{opacity:.4}
 </style>
 </head>
 <body>
@@ -371,9 +391,9 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 
   <!-- РАЗДЕЛЬНЫЙ ТУННЕЛЬ ПО ПРИЛОЖЕНИЯМ -->
   <div class="view hidden" id="view-apps">
-    <div class="back-row" onclick="go('rules')"><span class="bk">‹</span><div class="sec-title" style="margin:0">Раздельный туннель</div></div>
+    <div class="back-row" onclick="go('rules')"><span class="bk">‹</span><div class="sec-title" style="margin:0">Роутинг приложений</div></div>
     <div class="sec-sub">КАКИЕ ПРИЛОЖЕНИЯ ИДУТ ЧЕРЕЗ VPN</div>
-    <div class="sub-seg" style="margin-top:14px">
+    <div class="sub-seg">
       <button class="sub-seg-btn" id="split-off" onclick="setSplitMode('off')">Все через VPN</button>
       <button class="sub-seg-btn" id="split-bypass" onclick="setSplitMode('bypass')">Мимо VPN</button>
       <button class="sub-seg-btn" id="split-only" onclick="setSplitMode('only')">Только VPN</button>
