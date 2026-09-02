@@ -31,6 +31,8 @@ object VpnPrefs {
     const val KEY_CHAINS = "chains"
     /** JSON-массив имён select-групп сервисов (конфигуратор селекторов) */
     const val KEY_SERVICE_GROUPS = "service_groups"
+    /** JSON кредов WARP или "" */
+    const val KEY_WARP = "warp"
 
     fun prefs(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -74,6 +76,7 @@ object VpnPrefs {
         rules: Array<String> = arrayOf(),
         chainsJson: String = "[]",
         serviceGroups: Array<String> = arrayOf(),
+        warpJson: String = "",
     ) {
         val sm = if (splitMode == "bypass" || splitMode == "only") splitMode else "off"
         prefs(ctx).edit()
@@ -85,6 +88,7 @@ object VpnPrefs {
             .putString(KEY_RULES, JSONArray(rules.toList()).toString())
             .putString(KEY_CHAINS, chainsJson)
             .putString(KEY_SERVICE_GROUPS, JSONArray(serviceGroups.toList()).toString())
+            .putString(KEY_WARP, warpJson)
             .apply()
     }
 
@@ -119,6 +123,7 @@ object VpnPrefs {
             putExtra(MihomoVpnService.EXTRA_SPLIT_APPS, splitAppsArray(ctx))
             putExtra(MihomoVpnService.EXTRA_RULES, jsonStringArray(p.getString(KEY_RULES, "[]")))
             putExtra(MihomoVpnService.EXTRA_CHAINS, p.getString(KEY_CHAINS, "[]") ?: "[]")
+            putExtra(MihomoVpnService.EXTRA_WARP, p.getString(KEY_WARP, "") ?: "")
             putExtra(MihomoVpnService.EXTRA_SERVICE_GROUPS, jsonStringArray(p.getString(KEY_SERVICE_GROUPS, "[]")))
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) ctx.startForegroundService(i) else ctx.startService(i)

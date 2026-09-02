@@ -85,7 +85,7 @@ func Start(homeDir, configYAML string, fd int) string {
 	startLogCapture()
 
 	C.SetHomeDir(homeDir)
-	cfg, err := executor.ParseWithBytes([]byte(configYAML))
+	cfg, err := executor.ParseWithBytes([]byte(prepareConfig(configYAML)))
 	if err != nil {
 		return err.Error()
 	}

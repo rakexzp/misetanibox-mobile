@@ -285,6 +285,22 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 .about-row:last-child{border-bottom:none}
 .about-row span{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.5)}
 .about-row b{font-weight:600;text-align:right;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.chain-route{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:8px 0 10px}
+.chain-chip{display:inline-flex;align-items:center;gap:6px;padding:7px 11px;border-radius:999px;background:rgba(255,255,255,.12);font-size:13px;font-weight:600;color:#fff}
+.chain-chip i{font-style:normal;color:rgba(255,255,255,.45)}
+.chain-chip.empty{color:rgba(255,255,255,.4);font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase}
+.chain-chip.warp{background:#fff;color:#111}
+.chain-chip.del{border:none;background:rgba(255,255,255,.08);color:rgba(255,255,255,.6);padding:7px 10px}
+.chain-warp{display:flex;align-items:center;gap:12px;padding:10px 12px;margin:0 0 8px;border-radius:12px;background:rgba(255,255,255,.06);cursor:pointer}
+.chain-warp .grow{flex:1 1 auto;min-width:0}
+.chain-warp .t{font-size:14px;font-weight:600;color:#fff}
+.chain-node .flag,.chain-node img{width:22px;height:16px;border-radius:3px;object-fit:cover;flex:none}
+.chain-node .grow{flex:1 1 auto;min-width:0}
+.sub-modal-card{max-height:88vh;overflow-y:auto}
+.chain-nodes{max-height:36vh}
+.chain-warp .s{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:rgba(255,255,255,.5)}
+.chain-idx{flex:none;min-width:22px;height:22px;border-radius:11px;background:#fff;color:#111;font-family:var(--mono);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center}
 </style>
 </head>
 <body>
@@ -474,7 +490,9 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
     <div class="sub-modal-card">
       <div class="sub-modal-title">Цепочка</div>
       <input id="chain-name" class="sub-input" type="text" maxlength="24" placeholder="Название (напр. NL → DE)">
-      <div class="sub-modal-hint">Входной сервер — через него пойдёт цепочка</div>
+      <div class="sub-modal-hint">Маршрут: тапай серверы по порядку, последний — выход</div>
+      <div class="chain-route" id="chain-route"></div>
+      <div class="chain-warp" id="chain-warp-row" onclick="toggleWarpChain()"><div class="grow"><div class="t">WARP-выход</div><div class="s">CLOUDFLARE WARP ПОСЛЕДНИМ УЗЛОМ</div></div><button class="toggle" id="chain-warp-tgl" onclick="event.stopPropagation();toggleWarpChain()"></button></div>
       <input id="chain-search" class="apps-search" type="text" placeholder="Поиск сервера…" autocapitalize="off" oninput="renderChainNodes()">
       <div id="chain-nodes" class="chain-nodes"></div>
       <div class="sub-modal-btns">
@@ -771,7 +789,7 @@ async function toggleConnect(){
   const rulesList = buildRuleList();
   const chainList = chains();
   dbg('правил='+rulesList.length+' цепочек='+chainList.length);
-  try{ const r=await Vpn.start({ subUrl: sub, hwid: getHwid(), userAgent: getUserAgent(), splitMode: sm, splitApps: sApps, rules: rulesList, chains: chainList }); dbg('start() вернул: '+JSON.stringify(r||{})); }
+  try{ const r=await Vpn.start({ subUrl: sub, hwid: getHwid(), userAgent: getUserAgent(), splitMode: sm, splitApps: sApps, rules: rulesList, chains: chainList, warp: chainUsesWarp()?warpCreds():'' }); dbg('start() вернул: '+JSON.stringify(r||{})); }
   catch(e){ setStatusText('○ ОТКЛЮЧЕНО'); dbg('start() REJECT: '+(e&&e.message?e.message:e)); toast('Ошибка старта: '+(e&&e.message?e.message:e)); }
 }
 
@@ -1147,7 +1165,7 @@ function saveRule(){
 }
 
 // ---------- ЦЕПОЧКИ ----------
-function chains(){ try{ return JSON.parse(localStorage.getItem('mise_chains')||'[]'); }catch{ return []; } }
+function chains(){ try{ return (JSON.parse(localStorage.getItem('mise_chains')||'[]')||[]).filter(c=>c&&Array.isArray(c.nodes)&&c.nodes.length>=2); }catch{ return []; } }
 function saveChains(list){ localStorage.setItem('mise_chains', JSON.stringify(list)); refreshChainsSub(); }
 function refreshChainsSub(){
   const el=document.getElementById('chains-sub'); if(!el) return;
@@ -1157,46 +1175,78 @@ function renderChains(){
   const list=document.getElementById('chain-list'); if(!list) return;
   const cs=chains();
   list.innerHTML = cs.length ? cs.map((c,i)=>
-    `<div class="row"><div class="grow"><div class="t">🔗 ${esc(c.name)}</div><div class="s">ЧЕРЕЗ ${esc(cleanName(c.entry).toUpperCase())}</div></div><span class="chev" onclick="delChain(${i})">✕</span></div>`
+    `<div class="row"><div class="grow"><div class="t">🔗 ${esc(c.name)}</div><div class="s">${esc((c.nodes||[c.entry]).map(n=>cleanName(n)).join(' → ').toUpperCase())}</div></div><span class="chev" onclick="delChain(${i})">✕</span></div>`
   ).join('') : '<div class="list-note">Пока нет цепочек.</div>';
   refreshChainsSub();
 }
 function delChain(i){ const c=chains(); c.splice(i,1); saveChains(c); renderChains(); if(connected) toast('Применится при следующем подключении'); }
 
-let chainEntry='';
+let chainNodes=[];
+const WARP_NODE='WARP';
+function chainUsesWarp(){ return chains().some(c=>(c.nodes||[]).includes(WARP_NODE)); }
+function warpCreds(){ return localStorage.getItem('mise_warp_creds')||''; }
+async function ensureWarpCreds(){
+  if(warpCreds()) return true;
+  if(!Vpn||!Vpn.warpRegister){ toast('WARP доступен только в приложении'); return false; }
+  toast('Регистрирую WARP…');
+  try{ const r=await Vpn.warpRegister(); if(r&&r.creds){ localStorage.setItem('mise_warp_creds', r.creds); return true; } }
+  catch(e){ toast('WARP: '+(e&&e.message||'не удалось')); }
+  return false;
+}
 function openChainModal(){
-  chainEntry='';
+  chainNodes=[];
   document.getElementById('chain-name').value='';
   document.getElementById('chain-search').value='';
-  renderChainNodes();
+  renderChainRoute(); renderChainNodes();
   document.getElementById('chain-modal').classList.remove('hidden');
 }
 function closeChainModal(){ document.getElementById('chain-modal').classList.add('hidden'); }
 function chainNodeSource(){
-  // список серверов кэшируется как {all:[...], now:"..."}
+  if(connected && _proxies){
+    return Object.values(_proxies).filter(p=>p&&p.name&&!Array.isArray(p.all)&&!NO_EXIT.test(String(p.type||''))).map(p=>p.name);
+  }
   const c = safeJson(localStorage.getItem('mise_lastServers'));
   return (c && Array.isArray(c.all)) ? c.all : [];
+}
+function renderChainRoute(){
+  const box=document.getElementById('chain-route'); if(!box) return;
+  const tgl=document.getElementById('chain-warp-tgl'); if(tgl) tgl.classList.toggle('on', chainNodes[chainNodes.length-1]===WARP_NODE);
+  if(!chainNodes.length){ box.innerHTML='<span class="chain-chip empty">вход</span>'; return; }
+  box.innerHTML=chainNodes.map((n,i)=>`<span class="chain-chip${n===WARP_NODE?' warp':''}">${i?'<i>→</i>':''}${esc(cleanName(n))}</span>`).join('')+`<button class="chain-chip del" onclick="popChainNode()">✕</button>`;
+}
+function addChainNode(n){
+  if(chainNodes[chainNodes.length-1]===WARP_NODE){ toast('WARP — выход, после него узлов нет'); return; }
+  if(chainNodes.includes(n)){ toast('Уже в маршруте'); return; }
+  if(chainNodes.length>=4){ toast('Максимум 4 узла'); return; }
+  chainNodes.push(n); renderChainRoute(); renderChainNodes();
+}
+function popChainNode(){ chainNodes.pop(); renderChainRoute(); renderChainNodes(); }
+async function toggleWarpChain(){
+  if(chainNodes[chainNodes.length-1]===WARP_NODE){ chainNodes.pop(); renderChainRoute(); return; }
+  if(!chainNodes.length){ toast('Сначала выбери входной сервер'); return; }
+  if(!(await ensureWarpCreds())) return;
+  chainNodes.push(WARP_NODE); renderChainRoute(); renderChainNodes();
 }
 function renderChainNodes(){
   const box=document.getElementById('chain-nodes'); if(!box) return;
   const q=(document.getElementById('chain-search').value||'').trim().toLowerCase();
-  const all=chainNodeSource().filter(n=>!n.startsWith('🔗')&&!n.startsWith('⛓'));
+  const all=chainNodeSource().filter(n=>!n.startsWith('🔗')&&!n.startsWith('⛓')&&n!==WARP_NODE);
   const items=all.filter(n=>!q||n.toLowerCase().includes(q));
   if(!items.length){ box.innerHTML='<div class="list-note">Нет серверов — подключитесь или обновите подписку.</div>'; return; }
-  box.innerHTML=items.slice(0,200).map(n=>
-    `<div class="chain-node${n===chainEntry?' on':''}" onclick="pickChainEntry('${n.replace(/'/g,"\\'")}')">${flagImg(n,'flag')}<div class="grow"><div class="t">${esc(cleanName(n))}</div></div></div>`
+  box.innerHTML=items.slice(0,200).map(n=>{ const i=chainNodes.indexOf(n);
+    return `<div class="chain-node${i>=0?' on':''}" onclick="addChainNode('${q1(n)}')">${flagImg(n,'flag')}<div class="grow"><div class="t">${esc(cleanName(n))}</div></div>${i>=0?'<span class="chain-idx">'+(i+1)+'</span>':''}</div>`; }
   ).join('');
 }
-function pickChainEntry(n){ chainEntry=n; renderChainNodes(); }
+function q1(n){ return String(n).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
 function saveChain(){
   const name=(document.getElementById('chain-name').value||'').trim();
   if(!name){ toast('Введите название'); return; }
-  if(!chainEntry){ toast('Выберите входной сервер'); return; }
+  if(chainNodes.length<2){ toast('Нужно минимум два узла'); return; }
   const cs=chains();
   if(cs.some(c=>c.name===name)){ toast('Такая цепочка уже есть'); return; }
-  cs.push({name, entry: chainEntry});
+  cs.push({name, nodes: chainNodes.slice()});
   saveChains(cs); closeChainModal(); renderChains();
-  toast('Цепочка создана — выбери «🔗 '+name+'» в списке серверов');
+  toast(connected ? 'Цепочка создана — применится при следующем подключении' : 'Цепочка создана — выбери «🔗 '+name+'» в списке серверов');
 }
 
 // ---------- ОФОРМЛЕНИЕ: цвет акцента ----------

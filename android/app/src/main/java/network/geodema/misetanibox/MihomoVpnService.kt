@@ -34,7 +34,8 @@ class MihomoVpnService : VpnService() {
         const val EXTRA_SPLIT_MODE = "split_mode"
         const val EXTRA_SPLIT_APPS = "split_apps"
         const val EXTRA_RULES = "rules"
-        const val EXTRA_CHAINS = "chains" // JSON: [{"name":"...","entry":"..."}]
+        const val EXTRA_CHAINS = "chains" // JSON: [{"name":"...","nodes":["..."]}]
+        const val EXTRA_WARP = "warp"     // JSON кредов WARP или ""
         const val EXTRA_SERVICE_GROUPS = "service_groups" // имена select-групп сервисов (use: main)
         // префикс имени группы-цепочки в списке серверов
         const val CHAIN_PREFIX = "🔗 "
@@ -57,7 +58,8 @@ class MihomoVpnService : VpnService() {
                 val splitMode = intent?.getStringExtra(EXTRA_SPLIT_MODE) ?: "off"
                 val splitApps = intent?.getStringArrayExtra(EXTRA_SPLIT_APPS) ?: arrayOf()
                 val rules = intent?.getStringArrayExtra(EXTRA_RULES) ?: arrayOf()
-                val chains = parseChains(intent?.getStringExtra(EXTRA_CHAINS))
+                val chains = intent?.getStringExtra(EXTRA_CHAINS) ?: "[]"
+                val warp = intent?.getStringExtra(EXTRA_WARP) ?: ""
                 val serviceGroups = intent?.getStringArrayExtra(EXTRA_SERVICE_GROUPS) ?: arrayOf()
                 if (subUrl.isEmpty()) {
                     // сюда попадаем при рестарте сервиса системой с пустым intent
@@ -67,29 +69,11 @@ class MihomoVpnService : VpnService() {
                 // Уведомление обязано появиться сразу после startForegroundService,
                 // поэтому показываем его на главном потоке, а запуск ядра уводим в фон.
                 startForegroundNotif()
-                worker.execute { startTunnel(subUrl, hwid, userAgent, splitMode, splitApps, rules, chains, serviceGroups) }
+                worker.execute { startTunnel(subUrl, hwid, userAgent, splitMode, splitApps, rules, chains, warp, serviceGroups) }
             }
         }
         // не START_STICKY: иначе система переподнимет сервис с пустым intent и без подписки
         return START_NOT_STICKY
-    }
-
-    // Разбор цепочек из JSON: [{"name":"NL→DE","entry":"🇳🇱 NL #1"}]
-    private fun parseChains(json: String?): List<Pair<String, String>> {
-        if (json.isNullOrBlank()) return emptyList()
-        return try {
-            val arr = org.json.JSONArray(json)
-            val out = ArrayList<Pair<String, String>>()
-            for (i in 0 until arr.length()) {
-                val o = arr.optJSONObject(i) ?: continue
-                val name = o.optString("name").trim()
-                val entry = o.optString("entry").trim()
-                if (name.isNotEmpty() && entry.isNotEmpty()) out.add(name to entry)
-            }
-            out
-        } catch (_: Exception) {
-            emptyList()
-        }
     }
 
     private fun startTunnel(
@@ -99,7 +83,8 @@ class MihomoVpnService : VpnService() {
         splitMode: String,
         splitApps: Array<String>,
         rules: Array<String>,
-        chains: List<Pair<String, String>>,
+        chains: String,
+        warp: String,
         serviceGroups: Array<String>,
     ) {
         if (running) return
@@ -147,6 +132,9 @@ class MihomoVpnService : VpnService() {
                 override fun protect(fd: Long): Boolean = protect(fd.toInt())
             })
 
+            // цепочки и WARP ядро вшивает в конфиг подписки перед стартом
+            Mobilecore.setChains(chains)
+            Mobilecore.setWarp(warp)
             val err = Mobilecore.start(homeDir, config, fd.toLong())
             if (err.isNotEmpty()) {
                 broadcast("error", err)
@@ -311,144 +299,6 @@ class MihomoVpnService : VpnService() {
         "\"" + v.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
     // (провайдер-режим, оставлен как справка; классический режим его не использует)
-    private fun buildConfig(
-        subUrl: String,
-        hwid: String,
-        userAgent: String,
-        rules: Array<String>,
-        chains: List<Pair<String, String>>, // имя цепочки → входной узел
-        serviceGroups: Array<String>,       // имена select-групп сервисов (конфигуратор селекторов)
-    ): String {
-        // Заголовки запроса подписки. User-Agent определяет формат ответа панели: на
-        // clash-UA приходит YAML, на v2ray/xray-UA — JSON или список ссылок. Провайдер
-        // mihomo умеет только первое, поэтому здесь UA обязан быть clash-совместимым
-        // (в классическом режиме формат разбирает Subscription.convert, и UA свободен).
-        // Отступы без маркера "|": строка встраивается в шаблон как |$header,
-        // маркер добавляет сам шаблон — иначе в YAML попадут литеральные палки.
-        val header = buildString {
-            append("    header:\n")
-            append("      User-Agent: [${yamlStr(userAgent)}]")
-            if (hwid.isNotEmpty()) {
-                append("\n      x-hwid: [\"$hwid\"]")
-                append("\n      x-device-os: [\"Android\"]")
-                append("\n      x-ver-os: [\"${Build.VERSION.RELEASE}\"]")
-                append("\n      x-device-model: [\"${Build.MODEL}\"]")
-            }
-        }
-
-        // Цепочки: узлы приходят из провайдера подписки, поэтому dialer-proxy нельзя
-        // повесить ни на группу (mihomo это запрещает), ни на конкретный узел.
-        // Решение — ещё один провайдер с той же подпиской и override: все его узлы
-        // ходят через входной узел, а префикс разводит имена с основными.
-        val chainProviders = StringBuilder()
-        val chainGroups = StringBuilder()
-        val chainNames = mutableListOf<String>()
-        chains.forEachIndexed { i, (name, entry) ->
-            val groupName = "$CHAIN_PREFIX$name"
-            chainNames += groupName
-            chainProviders.append(
-                """
-                |  chain$i:
-                |    type: http
-                |    url: ${yamlStr(subUrl)}
-                |    interval: 21600
-                |    path: ./providers/chain$i.yaml
-                |    override:
-                |      dialer-proxy: ${yamlStr(entry)}
-                |      additional-prefix: ${yamlStr("$name · ")}
-                |$header
-                """.trimMargin()
-            ).append("\n")
-            chainGroups.append(
-                """
-                |  - name: ${yamlStr(groupName)}
-                |    type: select
-                |    use:
-                |      - chain$i
-                """.trimMargin()
-            ).append("\n")
-        }
-
-        // Цепочки добавляем в главный селектор, чтобы их можно было выбрать как обычный сервер
-        val proxyGroupChains = if (chainNames.isEmpty()) "" else
-            "\n    proxies:\n" + chainNames.joinToString("\n") { "      - ${yamlStr(it)}" }
-
-        // Конфигуратор селекторов: на каждый сервис «свой выбор» — своя select-группа
-        // поверх той же подписки (use: main). Правила GEOSITE,<geo>,<имя группы> приходят
-        // в rules и ссылаются на эти группы; узел в группе юзер выбирает во вкладке СЕРВЕРЫ.
-        val serviceGroupsBlock = StringBuilder()
-        for (g in serviceGroups) {
-            if (g.isBlank()) continue
-            serviceGroupsBlock.append(
-                """
-                |  - name: ${yamlStr(g)}
-                |    type: select
-                |    use:
-                |      - main
-                """.trimMargin()
-            ).append("\n")
-        }
-
-        val rulesBlock = buildString {
-            for (r in rules) {
-                val line = r.trim()
-                if (line.isNotEmpty()) append("  - ").append(yamlStr(line)).append("\n")
-            }
-            append("  - MATCH,PROXY")
-        }
-
-        return """
-            |mixed-port: 7890
-            |mode: rule
-            |log-level: warning
-            |ipv6: false
-            |unified-delay: true
-            |# поиск процесса-владельца соединения нам не нужен (раздельный туннель делает
-            |# VpnService), а на Android это сканирование /proc на каждое соединение — батарея
-            |find-process-mode: "off"
-            |# запоминать выбранный сервер между запусками
-            |profile:
-            |  store-selected: true
-            |external-controller: 127.0.0.1:9090
-            |dns:
-            |  enable: true
-            |  listen: 0.0.0.0:1053
-            |  ipv6: false
-            |  enhanced-mode: fake-ip
-            |  fake-ip-range: 198.18.0.1/16
-            |  fake-ip-filter:
-            |    - "*.lan"
-            |    - "*.local"
-            |    - "localhost.ptlogin2.qq.com"
-            |  default-nameserver:
-            |    - 77.88.8.8
-            |    - 223.5.5.5
-            |  nameserver:
-            |    - 77.88.8.8
-            |    - 223.5.5.5
-            |  proxy-server-nameserver:
-            |    - 77.88.8.8
-            |    - 223.5.5.5
-            |proxy-providers:
-            |  main:
-            |    type: http
-            |    url: ${yamlStr(subUrl)}
-            |    interval: 3600
-            |    path: ./providers/main.yaml
-            |$header
-            |$chainProviders
-            |proxy-groups:
-            |  - name: PROXY
-            |    type: select$proxyGroupChains
-            |    use:
-            |      - main
-            |$chainGroups
-            |$serviceGroupsBlock
-            |rules:
-            |$rulesBlock
-        """.trimMargin()
-    }
-
     private fun startForegroundNotif() {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

@@ -25,6 +25,7 @@ class VpnPlugin : Plugin() {
     private var pendingSplitApps = arrayOf<String>()
     private var pendingRules = arrayOf<String>()
     private var pendingChains = "[]"
+    private var pendingWarp = ""
     private var pendingServiceGroups = arrayOf<String>()
     private var receiver: BroadcastReceiver? = null
 
@@ -69,8 +70,9 @@ class VpnPlugin : Plugin() {
             rulesArr?.optString(i)?.let { if (it.isNotBlank()) rulesList.add(it) }
         }
         pendingRules = rulesList.toTypedArray()
-        // цепочки приходят готовым JSON-массивом [{name, entry}]
+        // цепочки приходят готовым JSON-массивом [{name, nodes:[...]}], WARP — JSON кредов или ""
         pendingChains = call.getArray("chains", com.getcapacitor.JSArray())?.toString() ?: "[]"
+        pendingWarp = call.getString("warp") ?: ""
         // имена select-групп сервисов из конфигуратора селекторов
         val sgArr = call.getArray("serviceGroups", com.getcapacitor.JSArray())
         val sgList = ArrayList<String>()
@@ -105,7 +107,7 @@ class VpnPlugin : Plugin() {
         // дублируем параметры в prefs, чтобы плитка/виджет/автозапуск могли поднять туннель без WebView
         VpnPrefs.saveLaunchState(
             context, pendingSubUrl, pendingHwid, pendingUserAgent, pendingSplitMode, pendingSplitApps,
-            pendingRules, pendingChains, pendingServiceGroups,
+            pendingRules, pendingChains, pendingServiceGroups, pendingWarp,
         )
         val i = Intent(context, MihomoVpnService::class.java)
         i.action = MihomoVpnService.ACTION_START
@@ -116,8 +118,24 @@ class VpnPlugin : Plugin() {
         i.putExtra(MihomoVpnService.EXTRA_SPLIT_APPS, pendingSplitApps)
         i.putExtra(MihomoVpnService.EXTRA_RULES, pendingRules)
         i.putExtra(MihomoVpnService.EXTRA_CHAINS, pendingChains)
+        i.putExtra(MihomoVpnService.EXTRA_WARP, pendingWarp)
         i.putExtra(MihomoVpnService.EXTRA_SERVICE_GROUPS, pendingServiceGroups)
         context.startForegroundService(i)
+    }
+
+    // Регистрация WARP-устройства в Cloudflare (один раз), креды хранит JS
+    @PluginMethod
+    fun warpRegister(call: PluginCall) {
+        Thread {
+            try {
+                val creds = mobilecore.Mobilecore.registerWarp()
+                val ret = JSObject()
+                ret.put("creds", creds)
+                call.resolve(ret)
+            } catch (e: Exception) {
+                call.reject(e.message ?: "регистрация WARP не удалась")
+            }
+        }.start()
     }
 
     @PluginMethod
