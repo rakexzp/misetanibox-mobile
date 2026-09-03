@@ -672,7 +672,7 @@ function navBack(){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'v0.21.3';
+const BUILD = 'v0.21.4';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
@@ -812,8 +812,16 @@ setInterval(blinkFace,5200);
 
 let connected=false, sessStart=0, sessTimer=null;
 const delays={}; // имя ноды -> пинг
+let _tunnelRefreshed=false;
+async function refreshViaTunnel(){
+  const sub=activeSub(); if(!sub||!Vpn||!Vpn.fetchSub||_tunnelRefreshed) return; _tunnelRefreshed=true;
+  try{ const r=await Vpn.fetchSub({url:sub.url, hwid:getHwid(), userAgent:getUserAgent(), fallbacks:subFallbacks(sub), viaProxy:true});
+    if(r&&r.status>=200&&r.status<300&&!r.cached){ const l=subs(); const a=l.find(x=>x.id===sub.id); if(a){ if(r.title) a.title=r.title; a.userinfo=parseUserinfo(r.userinfo||''); a.metaAt=Date.now(); if(r.fallbacks) a.fallbacks=String(r.fallbacks).split('\n').map(x=>x.trim()).filter(Boolean); saveSubs(l); renderSubs(); updateCoverMeta(); } }
+  }catch{}
+}
 function setUiConnected(on){
-  if(!on){ _mainSel=null; _providerNodes=null; }
+  if(!on){ _mainSel=null; _providerNodes=null; _tunnelRefreshed=false; }
+  else setTimeout(refreshViaTunnel, 4000);
   connected=on;
   setFace(on);
   const big=document.getElementById('connect-big');
@@ -890,6 +898,7 @@ if(Vpn && Vpn.addListener){
     if(s.state==='connected') setUiConnected(true);
     else if(s.state==='disconnected') setUiConnected(false);
     else if(s.state==='error'){ setUiConnected(false); toast('VPN: '+(s.message||'ошибка')); }
+    else if(s.state==='info'){ toast(String(s.message||'')); }
   });
 }
 
@@ -1492,6 +1501,7 @@ async function fetchSubMeta(sub){
   if(!sub||!sub.url||!Vpn||!Vpn.fetchSub) return;
   try{ const r=await Vpn.fetchSub({url:sub.url, hwid:getHwid(), userAgent:getUserAgent(), fallbacks:subFallbacks(sub)});
     if(!r||r.status<200||r.status>=300) return;
+    if(r.cached){ toast('Панель недоступна — офлайн-копия подписки'); return; }
     const l=subs(); const a=l.find(x=>x.id===sub.id); if(!a) return;
     a.title=r.title||''; a.logo=r.logo||''; a.webPage=r.webPage||''; a.supportUrl=r.supportUrl||''; a.announce=r.announce||'';
     a.userinfo=parseUserinfo(r.userinfo||''); a.metaAt=Date.now();

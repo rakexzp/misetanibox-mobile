@@ -67,6 +67,15 @@ object Subscription {
     }
 
     // запасной адрес: голый хост → путь/query основной ссылки, иначе как есть (как в ПК-клиенте)
+    // офлайн-копия последнего удачного конфига (белые списки оператора: домен панели недоступен с мобильного)
+    private fun cacheFile(ctx: android.content.Context, url: String): java.io.File {
+        val d = java.io.File(ctx.filesDir, "subcache").apply { mkdirs() }
+        val h = java.security.MessageDigest.getInstance("SHA-1").digest(url.toByteArray()).joinToString("") { "%02x".format(it) }
+        return java.io.File(d, "$h.yaml")
+    }
+    fun saveCache(ctx: android.content.Context, url: String, body: String) { try { if (body.isNotBlank()) cacheFile(ctx, url).writeText(body) } catch (_: Exception) {} }
+    fun loadCache(ctx: android.content.Context, url: String): String = try { val f = cacheFile(ctx, url); if (f.exists()) f.readText() else "" } catch (_: Exception) { "" }
+
     fun resolveFallbackUrl(primary: String, fb: String): String {
         return try {
             val f = java.net.URI(fb); if (f.host.isNullOrEmpty()) return ""
@@ -77,22 +86,23 @@ object Subscription {
     }
 
     /** Основная ссылка, потом запасные по очереди; первая с 2xx выигрывает. */
-    fun fetchAny(url: String, hwid: String, userAgent: String, fallbacks: List<String>): Fetched {
-        var last = fetch(url, hwid, userAgent)
+    fun fetchAny(url: String, hwid: String, userAgent: String, fallbacks: List<String>, proxyPort: Int = 0): Fetched {
+        var last = fetch(url, hwid, userAgent, proxyPort)
         if (last.status in 200..299 && last.body.isNotBlank()) return last
         val seen = HashSet<String>(); seen.add(url)
         for (fb in fallbacks) {
             val u = resolveFallbackUrl(url, fb.trim()); if (u.isEmpty() || !seen.add(u)) continue
-            val r = fetch(u, hwid, userAgent)
+            val r = fetch(u, hwid, userAgent, proxyPort)
             if (r.status in 200..299 && r.body.isNotBlank()) return r
             last = r
         }
         return last
     }
 
-    fun fetch(url: String, hwid: String, userAgent: String): Fetched {
+    fun fetch(url: String, hwid: String, userAgent: String, proxyPort: Int = 0): Fetched {
         return try {
-            val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+            val u = java.net.URL(url)
+            val conn = (if (proxyPort > 0) u.openConnection(java.net.Proxy(java.net.Proxy.Type.HTTP, java.net.InetSocketAddress("127.0.0.1", proxyPort))) else u.openConnection()) as java.net.HttpURLConnection
             conn.connectTimeout = CONNECT_TIMEOUT_MS
             conn.readTimeout = READ_TIMEOUT_MS
             conn.instanceFollowRedirects = true

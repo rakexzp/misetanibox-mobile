@@ -358,9 +358,16 @@ class VpnPlugin : Plugin() {
         val userAgent = Subscription.userAgentOr(call.getString("userAgent"))
         val fbArr = call.getArray("fallbacks", com.getcapacitor.JSArray()); val fbs = ArrayList<String>()
         for (i in 0 until (fbArr?.length() ?: 0)) fbArr?.optString(i)?.let { if (it.isNotBlank()) fbs.add(it) }
+        val viaProxy = call.getBoolean("viaProxy", false) ?: false
         Thread {
             val ret = JSObject()
-            val fetched = Subscription.fetchAny(url, hwid, userAgent, fbs)
+            var fetched = Subscription.fetchAny(url, hwid, userAgent, fbs, if (viaProxy) coreMixedPort() else 0)
+            if (fetched.status in 200..299 && fetched.body.isNotBlank()) {
+                Subscription.saveCache(context, url, fetched.body)
+            } else {
+                val cached = Subscription.loadCache(context, url)
+                if (cached.isNotBlank()) { fetched = Subscription.Fetched(200, cached, null); ret.put("cached", true) }
+            }
             ret.put("status", fetched.status)
             ret.put("title", fetched.title)
             for ((k, x) in fetched.meta) ret.put(k, x)

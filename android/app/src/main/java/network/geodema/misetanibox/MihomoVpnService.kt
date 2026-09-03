@@ -94,11 +94,19 @@ class MihomoVpnService : VpnService() {
         try {
             // Классика: сперва тянем конфиг подписки (со всеми селекторами автора). Если не
             // удалось — не поднимаем TUN, иначе интернет пропадёт при мёртвом туннеле.
-            val fetched = Subscription.fetchAny(subUrl, hwid, userAgent, fallbacks.toList())
-            if (fetched.body.isBlank()) {
-                val reason = fetched.error ?: "пустой ответ"
-                broadcast("error", "не удалось загрузить конфиг подписки ($reason) — проверьте ссылку и интернет")
-                return
+            var fetched = Subscription.fetchAny(subUrl, hwid, userAgent, fallbacks.toList())
+            if (fetched.status in 200..299 && fetched.body.isNotBlank()) {
+                Subscription.saveCache(this, subUrl, fetched.body)
+            } else {
+                // панель недоступна (белые списки/блок) → поднимаемся из последней удачной копии
+                val cached = Subscription.loadCache(this, subUrl)
+                if (cached.isBlank()) {
+                    val reason = fetched.error ?: "пустой ответ"
+                    broadcast("error", "не удалось загрузить конфиг подписки ($reason) — проверьте ссылку и интернет")
+                    return
+                }
+                broadcast("info", "панель недоступна — подключаюсь по сохранённой копии подписки")
+                fetched = Subscription.Fetched(200, cached, null)
             }
             // Подписка может прийти YAML-ом mihomo, JSON-ом Xray или списком ссылок:
             // формат определяет и приводит к YAML ядро. Ошибка здесь — это «формат не
