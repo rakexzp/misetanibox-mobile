@@ -188,7 +188,8 @@ class VpnPlugin : Plugin() {
         } catch (_: Exception) { 0 }
     }
 
-    // тактильный отклик: heavy = защёлкнулась панель, tick = закрылась
+    // тактильный отклик: heavy = защёлкнулась панель, tick = закрылась.
+    // usage=TOUCH система глушит при выключенном «виброотклике при касании» → PHYSICAL_EMULATION
     @PluginMethod
     fun haptic(call: PluginCall) {
         try {
@@ -198,11 +199,16 @@ class VpnPlugin : Plugin() {
             } else {
                 @Suppress("DEPRECATION") context.getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator
             }
-            if (Build.VERSION.SDK_INT >= 29) {
-                val eff = if (kind == "heavy") android.os.VibrationEffect.EFFECT_HEAVY_CLICK else android.os.VibrationEffect.EFFECT_TICK
-                vib.vibrate(android.os.VibrationEffect.createPredefined(eff))
-            } else if (Build.VERSION.SDK_INT >= 26) {
-                vib.vibrate(android.os.VibrationEffect.createOneShot(if (kind == "heavy") 30 else 10, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+            val effect = if (Build.VERSION.SDK_INT >= 29) {
+                android.os.VibrationEffect.createPredefined(if (kind == "heavy") android.os.VibrationEffect.EFFECT_HEAVY_CLICK else android.os.VibrationEffect.EFFECT_TICK)
+            } else {
+                android.os.VibrationEffect.createOneShot(if (kind == "heavy") 30 else 10, android.os.VibrationEffect.DEFAULT_AMPLITUDE)
+            }
+            if (Build.VERSION.SDK_INT >= 30) {
+                val attrs = android.os.VibrationAttributes.Builder().setUsage(android.os.VibrationAttributes.USAGE_PHYSICAL_EMULATION).build()
+                vib.vibrate(effect, attrs)
+            } else {
+                vib.vibrate(effect)
             }
         } catch (_: Exception) {}
         call.resolve()
