@@ -304,32 +304,17 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 .chain-warp .s{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:rgba(255,255,255,.5)}
 .chain-idx{flex:none;min-width:22px;height:22px;border-radius:11px;background:#fff;color:#111;font-family:var(--mono);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center}
 
-/* переходы между экранами (тулбар убран, навигация свайпом/стрелками) */
-@keyframes slide-l{from{transform:translateX(56px);opacity:0}to{transform:none;opacity:1}}
-@keyframes slide-r{from{transform:translateX(-40px);opacity:0}to{transform:none;opacity:1}}
-.view.slide-l{animation:slide-l .26s cubic-bezier(.2,.8,.2,1)}
-.view.slide-r{animation:slide-r .22s cubic-bezier(.2,.8,.2,1)}
-@media (prefers-reduced-motion:reduce){.view.slide-l,.view.slide-r{animation:none}}
-
-/* «Правила» — выдвижная панель справа: тянется за пальцем, пружинит, вибрирует при защёлкивании */
-#view-rules{position:absolute;inset:0;z-index:6;transform:translateX(100%);will-change:transform;background:rgba(15,16,19,.9);box-shadow:-1px 0 0 rgba(255,255,255,.08),-40px 0 80px rgba(0,0,0,.55);padding-top:calc(10px + var(--sat,0px))}
-#drawer-dim{position:absolute;inset:0;z-index:5;background:#000;opacity:0;pointer-events:none}
-#view-home{will-change:transform;transform-origin:50% 50%}
-#view-rules.anim,#view-home.anim,#drawer-dim.anim{transition:transform 480ms cubic-bezier(.22,1.28,.34,1),opacity 480ms cubic-bezier(.22,1,.36,1)}
-#view-rules.hidden{display:none}
-
-.sub-logo{width:38px;height:38px;border-radius:11px;object-fit:cover;flex:none;background:rgba(255,255,255,.1)}
-.sub-logo.dot{width:10px;height:10px;border-radius:50%;margin:0 14px;background:rgba(255,255,255,.25)}
-.sub-logo.dot.on{background:#30d158}
-.row.sub-on{box-shadow:inset 0 0 0 1px rgba(255,255,255,.35),inset 0 1px 0 rgba(255,255,255,.12)}
-.sub-actions{display:flex;gap:8px;margin:4px 16px 8px}
-.sub-actions .sub-btn{flex:1;min-height:44px}
-.sub-announce{white-space:pre-line}
-.ping-ico{display:inline-block;width:9px;height:9px;border-radius:50%;background:#30d158;box-shadow:0 0 6px rgba(48,209,88,.6)}
-.ping-ico.bad{background:#ff453a;box-shadow:0 0 6px rgba(255,69,58,.5)}
-/* клавиатура: листы с полями ввода поднимаются над ней (--kb из MainActivity) */
-.sub-modal{bottom:var(--kb,0px)}
-.sub-modal-card{max-height:calc(88vh - var(--kb,0px))}
+/* переходы между экранами: уходящий уезжает и гаснет, входящий въезжает; назад — наоборот */
+@keyframes leave-fwd{to{transform:translateX(-26%);opacity:0}}
+@keyframes enter-fwd{from{transform:translateX(56px);opacity:0}}
+@keyframes leave-back{to{transform:translateX(100%)}}
+@keyframes enter-back{from{transform:translateX(-32px);opacity:.4}}
+.view.leave-fwd,.view.leave-back{position:absolute;inset:0;z-index:7;pointer-events:none}
+.view.leave-fwd{animation:leave-fwd .4s cubic-bezier(.2,.8,.2,1) both}
+.view.leave-back{animation:leave-back .4s cubic-bezier(.2,.8,.2,1) both;background:rgba(15,16,19,.94);box-shadow:-30px 0 60px rgba(0,0,0,.5)}
+.view.enter-fwd{animation:enter-fwd .4s cubic-bezier(.2,.8,.2,1) both}
+.view.enter-back{animation:enter-back .4s cubic-bezier(.2,.8,.2,1) both}
+@media (prefers-reduced-motion:reduce){.view.leave-fwd,.view.leave-back,.view.enter-fwd,.view.enter-back{animation:none}}
 </style>
 </head>
 <body>
@@ -592,12 +577,20 @@ function go(t){
   if(prev==='rules'){ if(t==='home'){ closeDrawer(true); return; } closeDrawer(false); }
   showView(t, prev!==t);
 }
+const VIEW_DEPTH={home:0,settings:1,rules:1,subs:2,chains:2,apps:2,servers:2};
 function showView(t, anim){
-  tab=t;
+  const prev=tab; tab=t;
   document.querySelector('.app')?.classList.toggle('tab-home', t==='home');
-  for(const v of document.querySelectorAll('.view')){ if(v.id==='view-rules') continue; v.classList.add('hidden'); v.classList.remove('slide-l','slide-r'); }
-  const el=document.getElementById('view-'+t); el.classList.remove('hidden');
-  if(anim) el.classList.add(t==='home'?'slide-r':'slide-l');
+  const el=document.getElementById('view-'+t), prevEl=(prev&&prev!==t&&prev!=='rules')?document.getElementById('view-'+prev):null;
+  for(const v of document.querySelectorAll('.view')){ if(v.id==='view-rules'||v===el||v===prevEl) continue; v.classList.add('hidden'); v.classList.remove('leave-fwd','leave-back','enter-fwd','enter-back'); }
+  el.classList.remove('hidden','leave-fwd','leave-back','enter-fwd','enter-back');
+  if(anim && prevEl){
+    const back=(VIEW_DEPTH[t]||0)<(VIEW_DEPTH[prev]||0);
+    prevEl.classList.remove('hidden'); prevEl.classList.add(back?'leave-back':'leave-fwd');
+    el.classList.add(back?'enter-back':'enter-fwd');
+    let fin=false; const done=()=>{ if(fin) return; fin=true; prevEl.classList.add('hidden'); prevEl.classList.remove('leave-fwd','leave-back'); el.classList.remove('enter-fwd','enter-back'); };
+    prevEl.addEventListener('animationend', done, {once:true}); setTimeout(done, 480);
+  } else if(prevEl) prevEl.classList.add('hidden');
   if(t==='settings'){ const r=document.getElementById('subs-sub-row'); if(r){ const n=subs().length; const a=activeSub(); r.textContent=n?((a&&(a.title||a.name))||n+' ПОДПИСОК').toUpperCase():'НЕТ ПОДПИСОК'; } applyExpertUi(); }
   if(t==='chains') renderChains();
   if(t==='apps') openAppsScreen();
@@ -675,7 +668,7 @@ function navBack(){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'v0.21.6';
+const BUILD = 'v0.21.7';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
