@@ -81,7 +81,7 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 .mode-seg{display:flex;gap:4px;margin:6px 24px 8px;padding:4px;border-radius:12px;background:var(--ln)}
 .mode-seg button{flex:1;min-height:40px;border:none;border-radius:9px;background:transparent;color:var(--dim);font-family:inherit;font-size:13px;font-weight:600}
 .mode-seg button.active{background:var(--fg);color:var(--bg)}
-.nav button{flex:1;padding:10px 0 calc(12px + env(safe-area-inset-bottom));background:none;border:none;color:rgba(255,255,255,.38);font-family:'JetBrains Mono',monospace;font-size:0;letter-spacing:.14em;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px}
+.nav button{flex:1;padding:10px 0 calc(12px + var(--sab,0px));background:none;border:none;color:rgba(255,255,255,.38);font-family:'JetBrains Mono',monospace;font-size:0;letter-spacing:.14em;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px}
 .nav button .g{display:flex;align-items:center;justify-content:center}
 .nav button .g svg{width:24px;height:24px}
 .nav button.active{color:var(--fg)}
@@ -90,7 +90,7 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 /* МОДАЛКА ПОДПИСКИ */
 .sub-modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;z-index:50}
 .sub-modal.hidden{display:none}
-.sub-modal-card{width:100%;background:var(--bg);border-top:1px solid var(--fg);padding:26px 24px calc(26px + env(safe-area-inset-bottom))}
+.sub-modal-card{width:100%;background:var(--bg);border-top:1px solid var(--fg);padding:26px 24px calc(26px + var(--sab,0px))}
 .sub-modal-title{font-family:var(--display);font-weight:900;font-size:20px;letter-spacing:-.02em;text-transform:uppercase}
 .sub-seg{display:flex;gap:8px;margin-top:14px}
 .sub-seg-btn{flex:1;padding:10px;border:1px solid var(--ln);border-radius:var(--rad);background:transparent;color:var(--mut);font-size:13px;font-weight:600;cursor:pointer}
@@ -130,7 +130,7 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 .rule-line{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim)}
 
 /* ГЛАВНАЯ — ОБЛОЖКА */
-#view-home{position:relative;display:flex;flex-direction:column;gap:12px;padding:calc(18px + env(safe-area-inset-top)) 22px 22px;color:#fff;background:#0f1013;overflow:hidden}
+#view-home{position:relative;display:flex;flex-direction:column;gap:12px;padding:calc(18px + var(--sat,0px)) 22px calc(22px + var(--sab,0px));color:#fff;background:#0f1013;overflow:hidden}
 #view-home.hidden{display:none}
 .cover-bg{position:absolute;inset:0;background-size:cover;background-position:center;background-image:radial-gradient(120% 70% at 20% 0%,#4a5262 0%,transparent 60%),radial-gradient(90% 60% at 90% 40%,#2b303a 0%,transparent 60%),linear-gradient(160deg,#23262e,#0f1013);transition:filter .5s,opacity .5s}
 #view-home:not(.on) .cover-bg{filter:grayscale(.85) contrast(.95);opacity:.75}
@@ -180,7 +180,7 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 /* ЛИСТ СЕРВЕРОВ (как в Lite) */
 .cover-sheet-overlay{position:absolute;inset:0;z-index:20;background:rgba(0,0,0,.35);display:flex;align-items:flex-end}
 .cover-sheet-overlay.hidden{display:none}
-.cover-sheet{width:100%;max-height:78%;display:flex;flex-direction:column;gap:8px;padding:10px 14px calc(16px + env(safe-area-inset-bottom));border-radius:24px 24px 0 0;background:rgba(20,20,22,.96);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 -16px 50px rgba(0,0,0,.4);animation:sheet-in .3s cubic-bezier(.2,.8,.2,1)}
+.cover-sheet{width:100%;max-height:78%;display:flex;flex-direction:column;gap:8px;padding:10px 14px calc(16px + var(--sab,0px));border-radius:24px 24px 0 0;background:rgba(20,20,22,.96);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 -16px 50px rgba(0,0,0,.4);animation:sheet-in .3s cubic-bezier(.2,.8,.2,1)}
 @keyframes sheet-in{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
 .cover-sheet-handle{width:36px;height:5px;border-radius:3px;background:rgba(255,255,255,.35);align-self:center}
 .sheet-toolbar,.sheet-foot{display:flex;align-items:center;justify-content:space-between;padding:2px 6px;font-size:12px;color:rgba(255,255,255,.6)}
@@ -208,13 +208,13 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 .page-scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.6) 0%,rgba(0,0,0,.72) 50%,rgba(0,0,0,.88) 100%);z-index:0}
 .head,.view,.nav{position:relative;z-index:1}
 .app,.app .view{--bg:#0f1013;--fg:#fff;--dim:rgba(255,255,255,.7);--mut:rgba(255,255,255,.5);--ln:rgba(255,255,255,.12)}
-.head{padding:calc(14px + env(safe-area-inset-top)) 22px 0}
+.head{padding:calc(14px + var(--sat,0px)) 22px 0}
 .brand span{font-family:var(--display);font-weight:900;font-size:15px;letter-spacing:-.02em}
 .brand img{display:none}
 .brand-col{display:flex;flex-direction:column;gap:3px}
 .brand .head-meta{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.55)}
 .icon-btn{width:44px;height:44px;border-radius:13px;border:none;background:rgba(255,255,255,.12);color:#fff}
-.view:not(#view-home){padding-bottom:12px}
+.view:not(#view-home){padding-bottom:calc(24px + var(--sab,0px))}
 .sec-title{padding:22px 22px 2px;font-family:var(--display);font-weight:900;font-size:26px;letter-spacing:-.03em;text-transform:uppercase;color:#fff}
 .sec-sub{padding:0 22px 12px;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:rgba(255,255,255,.55)}
 .view:not(#view-home) .row{margin:0 16px 6px;padding:13px 14px;border:none;border-radius:14px;background:rgba(20,20,22,.78);box-shadow:inset 0 1px 0 rgba(255,255,255,.12);min-height:52px}
@@ -238,7 +238,7 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 .nav button.active .g{transform:translateY(-1px)}
 .nav button.active{color:#fff}
 .sub-modal{background:rgba(0,0,0,.55)}
-.sub-modal-card{border:none;border-radius:24px 24px 0 0;background:#141416;box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 -16px 50px rgba(0,0,0,.4);padding:14px 22px calc(22px + env(safe-area-inset-bottom))}
+.sub-modal-card{border:none;border-radius:24px 24px 0 0;background:#141416;box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 -16px 50px rgba(0,0,0,.4);padding:14px 22px calc(22px + var(--sab,0px))}
 .sub-modal-card::before{content:"";display:block;width:36px;height:5px;border-radius:3px;background:rgba(255,255,255,.35);margin:0 auto 14px}
 .sub-modal-title{font-family:var(--display);font-weight:900;font-size:18px;letter-spacing:-.02em;text-transform:uppercase;color:#fff}
 .sub-modal-hint{font-family:var(--mono);color:rgba(255,255,255,.55)}
@@ -303,6 +303,13 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 .chain-nodes{max-height:36vh}
 .chain-warp .s{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:rgba(255,255,255,.5)}
 .chain-idx{flex:none;min-width:22px;height:22px;border-radius:11px;background:#fff;color:#111;font-family:var(--mono);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center}
+
+/* переходы между экранами (тулбар убран, навигация свайпом/стрелками) */
+@keyframes slide-l{from{transform:translateX(56px);opacity:0}to{transform:none;opacity:1}}
+@keyframes slide-r{from{transform:translateX(-40px);opacity:0}to{transform:none;opacity:1}}
+.view.slide-l{animation:slide-l .26s cubic-bezier(.2,.8,.2,1)}
+.view.slide-r{animation:slide-r .22s cubic-bezier(.2,.8,.2,1)}
+@media (prefers-reduced-motion:reduce){.view.slide-l,.view.slide-r{animation:none}}
 </style>
 </head>
 <body>
@@ -316,7 +323,7 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
   <div class="view" id="view-home">
     <div class="cover-bg" id="cover-bg"></div><div class="cover-scrim"></div>
     <header class="cover-head">
-      <div class="cover-brand-block">
+      <div class="cover-brand-block" onclick="go('subs')">
         <span class="cover-brand">MISETANIBOX</span><span id="brand-face" hidden></span>
         <span class="cover-meta" id="cover-meta">Без подписки</span>
       </div>
@@ -361,7 +368,7 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 
   <!-- ПОДПИСКИ -->
   <div class="view hidden" id="view-subs">
-    <div class="sec-title">Подписки</div>
+    <div class="back-row" onclick="go('settings')"><span class="bk">‹</span><div class="sec-title" style="margin:0">Подписки</div></div>
     <div class="sec-sub" id="subs-count">НЕТ ПОДПИСОК</div>
     <div id="subs-list"></div>
     <div class="row" style="color:var(--dim)" onclick="addSubscription()"><div class="grow"><div class="t">+ Добавить подписку</div><div class="s">ТАП ПО ПОДПИСКЕ — СДЕЛАТЬ АКТИВНОЙ</div></div></div>
@@ -371,7 +378,7 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 
   <!-- ПРАВИЛА -->
   <div class="view hidden" id="view-rules">
-    <div class="sec-title">Правила</div>
+    <div class="back-row" onclick="go('home')"><span class="bk">‹</span><div class="sec-title" style="margin:0">Правила</div></div>
     <div class="sec-sub">КУДА ПУСКАТЬ ТРАФИК</div>
     <div class="mode-seg" id="mode-seg">
       <button data-v="rule" onclick="setModeVal('rule')">Правила</button><button data-v="global" onclick="setModeVal('global')">Глобально</button><button data-v="direct" onclick="setModeVal('direct')">Прямой</button>
@@ -394,8 +401,11 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 
   <!-- НАСТРОЙКИ -->
   <div class="view hidden" id="view-settings">
-    <div class="sec-title">Настройки</div>
+    <div class="back-row" onclick="go('home')"><span class="bk">‹</span><div class="sec-title" style="margin:0">Настройки</div></div>
     <div class="sec-sub" id="ver-sub">MISETANIBOX</div>
+    <div class="grp-label">Подключение</div>
+    <div class="row" onclick="go('subs')"><div class="grow"><div class="t">Подписки</div><div class="s" id="subs-sub-row">НЕТ ПОДПИСОК</div></div><span class="chev">›</span></div>
+    <div class="row" onclick="go('rules')"><div class="grow"><div class="t">Правила</div><div class="s">РЕЖИМ · РОУТИНГ · СЕЛЕКТОРЫ</div></div><span class="chev">›</span></div>
     <div class="grp-label">Туннель</div>
     <div class="row" onclick="appsBack='settings';go('apps')"><div class="grow"><div class="t">Роутинг приложений</div><div class="s" id="split-sub">ПО ПРИЛОЖЕНИЯМ · ВЫКЛ</div></div><span class="chev">›</span></div>
     <div class="row" onclick="go('chains')"><div class="grow"><div class="t">Цепочки</div><div class="s" id="chains-sub">НЕТ ЦЕПОЧЕК</div></div><span class="chev">›</span></div>
@@ -482,12 +492,6 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
     </div>
   </div>
 
-  <nav class="nav">
-    <button class="active" data-tab="home" onclick="go('home')"><span class="g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 4l9 6.5V20a1 1 0 0 1-1 1h-4v-6h-4v6H4a1 1 0 0 1-1-1z"/></svg></span>ГЛАВНАЯ</button>
-    <button data-tab="rules" onclick="go('rules')"><span class="g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="m15 15 6 6"/><path d="M4 4l5 5"/></svg></span>ПРАВИЛА</button>
-    <button data-tab="subs" onclick="go('subs')"><span class="g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 0 1 0 10h-2"/><path d="M8 12h8"/></svg></span>ПОДПИСКИ</button>
-    <button data-tab="settings" onclick="go('settings')"><span class="g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>НАСТРОЙКИ</button>
-  </nav>
 </div>
 
 <script>
@@ -495,7 +499,7 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 function toast(msg){
   let t=document.getElementById('mise-toast');
   if(!t){ t=document.createElement('div'); t.id='mise-toast'; document.body.appendChild(t);
-    t.style.cssText='position:fixed;left:16px;right:16px;bottom:calc(80px + env(safe-area-inset-bottom));z-index:100;background:var(--fg);color:var(--bg);padding:13px 16px;border-radius:8px;font-size:13px;font-weight:600;text-align:center;opacity:0;transition:opacity .2s;pointer-events:none';
+    t.style.cssText='position:fixed;left:16px;right:16px;bottom:calc(80px + var(--sab,0px));z-index:100;background:var(--fg);color:var(--bg);padding:13px 16px;border-radius:8px;font-size:13px;font-weight:600;text-align:center;opacity:0;transition:opacity .2s;pointer-events:none';
   }
   t.textContent=msg; t.style.opacity='1';
   clearTimeout(t._h); t._h=setTimeout(()=>{ t.style.opacity='0'; }, 3200);
@@ -561,16 +565,38 @@ let tab='home';
 let appsBack='rules';
 function go(t){
   if(t==='servers'){ openServerSheet(); return; }
-  tab=t;
   document.querySelector('.app')?.classList.toggle('tab-home', t==='home');
-  for(const v of document.querySelectorAll('.view')) v.classList.add('hidden');
-  document.getElementById('view-'+t).classList.remove('hidden');
-  for(const b of document.querySelectorAll('.nav button')) b.classList.toggle('active', b.dataset.tab===t);
-  if(t==='servers'){ openServerSheet(); return; }
+  const prev=tab; tab=t;
+  for(const v of document.querySelectorAll('.view')){ v.classList.add('hidden'); v.classList.remove('slide-l','slide-r'); }
+  const el=document.getElementById('view-'+t); el.classList.remove('hidden');
+  if(prev!==t) el.classList.add(t==='home'?'slide-r':'slide-l');
+  if(t==='settings'){ const r=document.getElementById('subs-sub-row'); if(r){ const n=subs().length; const a=activeSub(); r.textContent=n?((a&&(a.title||a.name))||n+' ПОДПИСОК').toUpperCase():'НЕТ ПОДПИСОК'; } }
   if(t==='rules'){ applyModeLabel(); applyExpertUi(); const ss=document.getElementById('split-sub2'), so=document.getElementById('split-sub'); if(ss&&so) ss.textContent=so.textContent; }
   if(t==='settings'){ applyExpertUi(); }
   if(t==='chains') renderChains();
   if(t==='apps') openAppsScreen();
+}
+
+// ---------- свайп-навигация (тулбара нет): главная ←свайп→ правила ----------
+function overlayOpen(){ return [...document.querySelectorAll('.sub-modal,.cover-sheet-overlay')].some(e=>!e.classList.contains('hidden')); }
+(function(){
+  let sx=0, sy=0, t0=0;
+  document.addEventListener('touchstart', e=>{ const t=e.touches[0]; sx=t.clientX; sy=t.clientY; t0=Date.now(); }, {passive:true});
+  document.addEventListener('touchend', e=>{
+    if(overlayOpen()) return;
+    const t=e.changedTouches[0]; const dx=t.clientX-sx, dy=t.clientY-sy;
+    if(Date.now()-t0>600 || Math.abs(dx)<70 || Math.abs(dy)>Math.abs(dx)*.6) return;
+    if(tab==='home' && dx<0) go('rules');
+    else if(tab==='rules' && dx>0) go('home');
+  }, {passive:true});
+})();
+// системная кнопка «назад» (MainActivity → evaluateJavascript): 'exit' = свернуть приложение
+function navBack(){
+  const sheet=document.getElementById('server-sheet'); if(sheet&&!sheet.classList.contains('hidden')){ closeServerSheet(); return 'ok'; }
+  for(const m of document.querySelectorAll('.sub-modal')) if(!m.classList.contains('hidden')){ m.classList.add('hidden'); return 'ok'; }
+  if(tab==='home') return 'exit';
+  const parent={rules:'home',settings:'home',subs:'settings',chains:'settings',apps:(typeof appsBack==='string'?appsBack:'rules'),servers:'rules'}[tab]||'home';
+  go(parent); return 'ok';
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
@@ -1342,6 +1368,7 @@ async function fetchSubTitle(){
   }catch{}
 }
 fetchSubTitle();
+if(!localStorage.getItem('mise_hint_swipe')){ localStorage.setItem('mise_hint_swipe','1'); setTimeout(()=>toast('Правила — свайп влево, настройки — шестерёнка'),1500); }
 // стартовая диагностика окружения
 dbg('старт '+BUILD+' | Cap='+(!!Cap)+' platform='+platform+' native='+isNative+' plugin='+(!!Vpn)+' reg='+(!!(Cap&&Cap.registerPlugin)));
 const vs=document.getElementById('ver-sub'); if(vs) vs.textContent='MISETANIBOX · '+BUILD.toUpperCase();
