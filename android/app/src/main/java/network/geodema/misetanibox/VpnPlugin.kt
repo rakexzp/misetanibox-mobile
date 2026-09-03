@@ -214,6 +214,36 @@ class VpnPlugin : Plugin() {
         call.resolve()
     }
 
+    // открыть ссылку во внешнем браузере (оплата, поддержка, скачать обновление)
+    @PluginMethod
+    fun openUrl(call: PluginCall) {
+        val url = call.getString("url") ?: ""
+        try {
+            val i = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(i)
+            call.resolve()
+        } catch (e: Exception) { call.reject(e.message ?: "не открылось") }
+    }
+
+    // GET текстового ресурса мимо CORS WebView (манифест обновлений)
+    @PluginMethod
+    fun httpGet(call: PluginCall) {
+        val url = call.getString("url") ?: ""
+        Thread {
+            val ret = JSObject()
+            try {
+                val c = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+                c.connectTimeout = 8000; c.readTimeout = 10000
+                c.setRequestProperty("User-Agent", "Misetanibox-Android")
+                val code = c.responseCode
+                val text = (if (code in 200..299) c.inputStream else c.errorStream)?.bufferedReader()?.use { it.readText() } ?: ""
+                c.disconnect()
+                ret.put("status", code); ret.put("body", text)
+            } catch (e: Exception) { ret.put("status", 0); ret.put("body", ""); ret.put("error", e.message ?: "") }
+            call.resolve(ret)
+        }.start()
+    }
+
     @PluginMethod
     fun setAutostart(call: PluginCall) {
         VpnPrefs.setAutostart(context, call.getBoolean("on", false) ?: false)
@@ -287,6 +317,7 @@ class VpnPlugin : Plugin() {
             val fetched = Subscription.fetch(url, hwid, userAgent)
             ret.put("status", fetched.status)
             ret.put("title", fetched.title)
+            for ((k, x) in fetched.meta) ret.put(k, x)
             if (fetched.body.isBlank()) {
                 ret.put("body", "")
                 ret.put("error", fetched.error ?: "пустой ответ")

@@ -24,7 +24,7 @@ object Subscription {
     private const val READ_TIMEOUT_MS = 15000
 
     /** Ответ подписки как есть, до разбора формата. */
-    data class Fetched(val status: Int, val body: String, val error: String?, val title: String = "")
+    data class Fetched(val status: Int, val body: String, val error: String?, val title: String = "", val meta: Map<String, String> = emptyMap())
 
     /** Готовый к запуску конфиг плюс то, что стоит показать пользователю. */
     data class Converted(
@@ -79,8 +79,17 @@ object Subscription {
             val text = (if (code in 200..299) conn.inputStream else conn.errorStream)
                 ?.bufferedReader()?.use { it.readText() } ?: ""
             val title = profileTitle(conn.getHeaderField("profile-title"))
+            // заголовки панели: логотип, страница оплаты, поддержка, объявление, трафик/срок
+            val meta = HashMap<String, String>()
+            meta["title"] = title
+            meta["logo"] = conn.getHeaderField("profile-logo")?.trim() ?: ""
+            meta["webPage"] = conn.getHeaderField("profile-web-page-url")?.trim() ?: ""
+            meta["supportUrl"] = conn.getHeaderField("support-url")?.trim() ?: ""
+            meta["announce"] = profileTitle(conn.getHeaderField("announce"))
+            meta["userinfo"] = conn.getHeaderField("subscription-userinfo")?.trim() ?: ""
+            meta["updateInterval"] = conn.getHeaderField("profile-update-interval")?.trim() ?: ""
             conn.disconnect()
-            Fetched(code, if (code in 200..299) text else "", if (code in 200..299) null else "HTTP $code", title)
+            Fetched(code, if (code in 200..299) text else "", if (code in 200..299) null else "HTTP $code", title, meta)
         } catch (e: Exception) {
             Fetched(0, "", e.message ?: "не удалось загрузить подписку")
         }

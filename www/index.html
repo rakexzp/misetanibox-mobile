@@ -317,6 +317,14 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 #view-home{will-change:transform;transform-origin:50% 50%}
 #view-rules.anim,#view-home.anim,#drawer-dim.anim{transition:transform 480ms cubic-bezier(.22,1.28,.34,1),opacity 480ms cubic-bezier(.22,1,.36,1)}
 #view-rules.hidden{display:none}
+
+.sub-logo{width:38px;height:38px;border-radius:11px;object-fit:cover;flex:none;background:rgba(255,255,255,.1)}
+.sub-logo.dot{width:10px;height:10px;border-radius:50%;margin:0 14px;background:rgba(255,255,255,.25)}
+.sub-logo.dot.on{background:#30d158}
+.row.sub-on{box-shadow:inset 0 0 0 1px rgba(255,255,255,.35),inset 0 1px 0 rgba(255,255,255,.12)}
+.sub-actions{display:flex;gap:8px;margin:4px 16px 8px}
+.sub-actions .sub-btn{flex:1;min-height:44px}
+.sub-announce{white-space:pre-line}
 </style>
 </head>
 <body>
@@ -423,6 +431,7 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
     <div class="row"><div class="grow"><div class="t">Селекторы групп</div><div class="s">РЕЖИМ ЭКСПЕРТА · ГРУППЫ ПОДПИСКИ В «ПРАВИЛАХ»</div></div><button class="toggle" id="tgl-expert" onclick="toggleExpert(this)"></button></div>
     <div class="row" onclick="pickWallpaper()"><div class="grow"><div class="t">Обои главной</div><div class="s">СВОЯ КАРТИНКА НА ОБЛОЖКЕ</div></div><span class="chev">›</span></div>
     <div class="grp-label">Приложение</div>
+    <div class="row" id="upd-row" onclick="onUpdateRow()"><div class="grow"><div class="t">Обновление</div><div class="s" id="upd-sub">ПРОВЕРКА…</div></div><span class="chev">›</span></div>
     <div class="row" onclick="showAbout()"><div class="grow"><div class="t">О приложении</div><div class="s">ВЕРСИЯ · ЯДРО · АВТОРЫ</div></div><span class="chev">›</span></div>
   </div>
 
@@ -723,7 +732,7 @@ function setActiveSub(id){
 function getSubUrl(){ const s=activeSub(); return s ? s.url : (localStorage.getItem('mise_subUrl')||''); }
 function switchSub(id){
   if(id===activeSubId()) return;
-  setActiveSub(id); renderSubs();
+  setActiveSub(id); renderSubs(); fetchSubMeta(subs().find(s=>s.id===id));
   toast(connected ? 'Переподключитесь, чтобы применить' : 'Активная: '+(subs().find(s=>s.id===id)||{}).name);
 }
 function delSub(id, ev){
@@ -1132,14 +1141,20 @@ function renderSubs(){
   if(!box) return;
   if(!list.length){ box.innerHTML='<div class="list-note">Добавьте ссылку на подписку — mihomo YAML, Xray JSON или список ссылок.</div>'; return; }
   const fmt=localStorage.getItem('mise_subFormat');
-  box.innerHTML=list.map(s=>{
-    const on=s.id===act;
-    const sub=on ? ('АКТИВНА'+(fmt?' · '+fmt.toUpperCase():'')) : esc(s.url.replace(/^https?:\/\//,'').slice(0,38));
-    return `<div class="row" onclick="switchSub('${q(s.id)}')">`+
-      `<span class="flag" style="background:${on?'var(--ok)':'var(--ln)'}"></span>`+
-      `<div class="grow"><div class="t">${esc(s.name)}</div><div class="s">${sub}</div></div>`+
+  let html=list.map(s=>{
+    const on=s.id===act; const u=s.userinfo||{};
+    const traffic=(u.total||u.download||u.upload)?fmtBytes((u.download||0)+(u.upload||0))+(u.total?' / '+fmtBytes(u.total):''):'';
+    const parts=[on?'АКТИВНА':'', traffic, subExpiryText(u), (on&&fmt)?fmt.toUpperCase():''].filter(Boolean);
+    const sub=parts.length?parts.join(' · '):esc(s.url.replace(/^https?:\/\//,'').slice(0,38));
+    const logo=s.logo?`<img class="sub-logo" src="${esc(s.logo)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'sub-logo dot'}))">`:`<span class="sub-logo dot${on?' on':''}"></span>`;
+    return `<div class="row${on?' sub-on':''}" onclick="switchSub('${q(s.id)}')">${logo}`+
+      `<div class="grow"><div class="t">${esc(s.title||s.name)}</div><div class="s">${sub}</div></div>`+
       `<span class="chev" onclick="delSub('${q(s.id)}',event)">✕</span></div>`;
   }).join('');
+  const a=list.find(x=>x.id===act)||list[0];
+  if(a&&(a.webPage||a.supportUrl)) html+=`<div class="sub-actions">${a.webPage?`<button class="sub-btn primary" onclick="openExternal('${q(a.webPage)}')">Продлить</button>`:''}${a.supportUrl?`<button class="sub-btn" onclick="openExternal('${q(a.supportUrl)}')">Поддержка</button>`:''}</div>`;
+  if(a&&a.announce) html+=`<div class="list-note sub-announce">${esc(a.announce)}</div>`;
+  box.innerHTML=html;
 }
 
 // ---------- режим маршрутизации ----------
@@ -1379,7 +1394,7 @@ async function saveSubModal(){
   const dup=list.find(s=>s.url===url);
   if(dup){ setActiveSub(dup.id); closeSubModal(); renderSubs(); toast('Уже добавлена — сделал активной'); go('servers'); return; }
   const item={id:'s'+Date.now(), name:subName(url), url};
-  list.push(item); saveSubs(list); setActiveSub(item.id);
+  list.push(item); saveSubs(list); setActiveSub(item.id); fetchSubMeta(item);
   closeSubModal(); renderSubs(); toast('Подписка добавлена'); go('servers');
 }
 
@@ -1421,14 +1436,36 @@ initAutostart();
 applyUaSub();
 renderSubs();
 setUiConnected(false);
-// название панели (profile-title) — тянем один раз на старте, без открытия «Подписок»
-async function fetchSubTitle(){
-  const sub=getSubUrl(); if(!sub||!Vpn||!Vpn.fetchSub) return;
-  try{ const r=await Vpn.fetchSub({url:sub, hwid:getHwid(), userAgent:getUserAgent()});
-    if(r&&r.title){ const l=subs(); const a=l.find(x=>x.id===activeSubId())||l[0]; if(a&&a.title!==r.title){ a.title=r.title; saveSubs(l); renderSubs(); } updateCoverMeta(); }
+// заголовки панели (title/logo/оплата/поддержка/трафик) — на старте, при добавлении и переключении
+async function fetchSubMeta(sub){
+  if(!sub||!sub.url||!Vpn||!Vpn.fetchSub) return;
+  try{ const r=await Vpn.fetchSub({url:sub.url, hwid:getHwid(), userAgent:getUserAgent()});
+    if(!r||r.status<200||r.status>=300) return;
+    const l=subs(); const a=l.find(x=>x.id===sub.id); if(!a) return;
+    a.title=r.title||''; a.logo=r.logo||''; a.webPage=r.webPage||''; a.supportUrl=r.supportUrl||''; a.announce=r.announce||'';
+    a.userinfo=parseUserinfo(r.userinfo||''); a.metaAt=Date.now();
+    saveSubs(l); renderSubs(); updateCoverMeta();
   }catch{}
 }
-fetchSubTitle();
+function parseUserinfo(str){ const o={}; for(const kv of String(str).split(';')){ const [k,v]=kv.split('='); if(k&&v!==undefined){ const n=Number(v.trim()); o[k.trim()]=isNaN(n)?v.trim():n; } } return o; }
+function subExpiryText(u){ if(!u||!u.expire) return ''; const d=new Date(u.expire*1000); return 'ДО '+d.toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit',year:'2-digit'}); }
+function openExternal(url){ if(!url) return; if(Vpn&&Vpn.openUrl) Vpn.openUrl({url}).catch(()=>{}); else window.open(url,'_blank'); }
+fetchSubMeta(activeSub());
+// обновление из приложения: манифест на зеркале → скачать APK через браузер
+const UPDATE_URL='https://files.geodema.network/misetani/android-update.json';
+let updInfo=null;
+function verNum(v){ return String(v||'').replace(/^v/,'').split('.').map(n=>parseInt(n,10)||0); }
+function verGt(a,b){ const x=verNum(a), y=verNum(b); for(let i=0;i<3;i++){ if((x[i]||0)!==(y[i]||0)) return (x[i]||0)>(y[i]||0); } return false; }
+async function checkUpdate(){
+  const el=document.getElementById('upd-sub');
+  if(!Vpn||!Vpn.httpGet){ if(el) el.textContent=BUILD.toUpperCase()+' · ТОЛЬКО В ПРИЛОЖЕНИИ'; return; }
+  try{ const r=await Vpn.httpGet({url:UPDATE_URL+'?t='+Date.now()}); const j=(r&&r.status===200)?JSON.parse(r.body):null;
+    if(j&&j.tag_name&&verGt(j.tag_name,BUILD)){ updInfo=j; if(el) el.textContent='ДОСТУПНА '+String(j.tag_name).toUpperCase()+' · ТАП — СКАЧАТЬ'; toast('Доступно обновление '+j.tag_name); }
+    else { updInfo=null; if(el) el.textContent=BUILD.toUpperCase()+' · АКТУАЛЬНАЯ'; }
+  }catch{ if(el) el.textContent=BUILD.toUpperCase()+' · НЕ УДАЛОСЬ ПРОВЕРИТЬ'; }
+}
+function onUpdateRow(){ if(updInfo&&updInfo.apk){ openExternal(updInfo.apk); } else { const el=document.getElementById('upd-sub'); if(el) el.textContent='ПРОВЕРКА…'; checkUpdate(); } }
+setTimeout(checkUpdate, 2500);
 if(!localStorage.getItem('mise_hint_swipe')){ localStorage.setItem('mise_hint_swipe','1'); setTimeout(()=>toast('Потяни экран влево — правила; настройки — шестерёнка'),1500); }
 // стартовая диагностика окружения
 dbg('старт '+BUILD+' | Cap='+(!!Cap)+' platform='+platform+' native='+isNative+' plugin='+(!!Vpn)+' reg='+(!!(Cap&&Cap.registerPlugin)));
