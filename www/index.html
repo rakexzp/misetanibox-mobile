@@ -130,7 +130,7 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 .rule-line{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim)}
 
 /* ГЛАВНАЯ — ОБЛОЖКА */
-#view-home{position:relative;display:flex;flex-direction:column;gap:12px;padding:calc(18px + var(--sat,0px)) 22px calc(22px + var(--sab,0px));color:#fff;background:#0f1013;overflow:hidden}
+#view-home{position:relative;display:flex;flex-direction:column;gap:18px;padding:calc(18px + var(--sat,0px)) 22px calc(22px + var(--sab,0px));color:#fff;background:#0f1013;overflow:hidden}
 #view-home.hidden{display:none}
 .cover-bg{position:absolute;inset:0;background-size:cover;background-position:center;background-image:radial-gradient(120% 70% at 20% 0%,#4a5262 0%,transparent 60%),radial-gradient(90% 60% at 90% 40%,#2b303a 0%,transparent 60%),linear-gradient(160deg,#23262e,#0f1013);transition:filter .5s,opacity .5s}
 #view-home:not(.on) .cover-bg{filter:grayscale(.85) contrast(.95);opacity:.75}
@@ -147,13 +147,13 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 .cover-icon:active{transform:scale(.95)}
 .cover-icon svg{width:22px;height:22px}
 .cover-spacer{flex:1}
-.cover-hero{display:flex;flex-direction:column;gap:2px;align-items:flex-start}
+.cover-hero{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
 .hero-line{display:block;animation:hero-in .55s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i)*90ms)}
 @keyframes hero-in{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 .hero-code,.hero-timer{font-family:var(--display);font-weight:900;font-size:clamp(48px,15vw,64px);line-height:.92;letter-spacing:-.04em;text-transform:uppercase;color:#fff;white-space:nowrap}
 .hero-code{display:flex;align-items:center;gap:12px}
 .hero-flag{width:.62em;height:.46em;border-radius:.08em;object-fit:cover;box-shadow:0 2px 10px rgba(0,0,0,.35)}
-.hero-timer{font-family:var(--mono);font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.hero-timer{font-family:var(--mono);font-weight:700;font-size:clamp(38px,12vw,52px);line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
 #view-home:not(.on) .hero-code,#view-home:not(.on) .hero-timer{color:rgba(255,255,255,.45)}
 .shine-text{display:inline-block}
 #view-home.on .shine-text{background:linear-gradient(105deg,#fff 0%,#fff 38%,rgba(255,255,255,.45) 50%,#fff 62%,#fff 100%);background-size:260% 100%;background-position:120% 0;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:#fff;animation:shine-sweep 1.2s cubic-bezier(.2,.8,.2,1) .35s both,shine-idle 9s linear 3s infinite}
@@ -161,14 +161,14 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 @keyframes shine-idle{0%,82%{background-position:120% 0}100%{background-position:-40% 0}}
 #view-home.busy .hero-timer .shine-text{background:linear-gradient(105deg,rgba(255,255,255,.55) 0%,rgba(255,255,255,.55) 35%,#fff 50%,rgba(255,255,255,.55) 65%,rgba(255,255,255,.55) 100%);background-size:260% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;animation:timer-shimmer 1.6s linear infinite}
 @keyframes timer-shimmer{from{background-position:120% 0}to{background-position:-40% 0}}
-.cover-sub{display:flex;align-items:center;gap:10px;min-width:0}
+.cover-sub{display:flex;align-items:center;gap:10px;min-width:0;margin-top:2px}
 .cover-sub-name{font-size:15px;font-weight:600;color:rgba(255,255,255,.92);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
 .cover-sub-ping{font-family:var(--mono);font-size:13px;color:rgba(255,255,255,.7)!important;flex:none;min-width:6ch;text-align:right;font-variant-numeric:tabular-nums}
-.cover-traffic{display:flex;align-items:center;gap:4px;margin-top:-6px;font-family:var(--mono);font-size:12px;color:rgba(255,255,255,.7)}
+.cover-traffic{display:flex;align-items:center;gap:4px;margin-top:-4px;font-family:var(--mono);font-size:12px;color:rgba(255,255,255,.7)}
 .cover-traffic i{font-style:normal;margin-right:2px}
 .cover-traffic .tv{display:inline-block;min-width:11ch;margin-right:10px;font-variant-numeric:tabular-nums}
 .cover-traffic .mode{margin-left:auto;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.14);color:#fff;font-size:11px;letter-spacing:.1em}
-.cover-bar{display:flex;align-items:center;gap:10px}
+.cover-bar{display:flex;align-items:center;gap:10px;margin-top:6px}
 .cover-primary{flex:1 1 auto;min-width:150px;min-height:52px;border:none;border-radius:999px;background:#fff;color:#111;font-family:var(--display);font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;transition:transform .1s,opacity .2s}
 .cover-primary:disabled{opacity:.5}
 .cover-primary:active{transform:scale(.97)}
@@ -675,7 +675,7 @@ function navBack(){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'v0.21.8';
+const BUILD = 'v0.21.9';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
