@@ -41,6 +41,8 @@ object Subscription {
         val names: List<String>,
         /** Настройки, которые не удалось перенести; пусто, если всё перенеслось. */
         val notes: String,
+        /** JSON {main, auto, members[]} главного селектора для листа до подключения (mihomo) */
+        val sheet: String = "",
     )
 
     /** Пустой/пробельный UA означает «настройка не трогалась». */
@@ -113,6 +115,7 @@ object Subscription {
             // имена приходят одной строкой: список строк gomobile через JNI не носит
             names = r.names.split('\n').map { it.trim() }.filter { it.isNotEmpty() },
             notes = r.notes,
+            sheet = r.sheet,
         )
     }
 

@@ -670,7 +670,7 @@ function navBack(){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'v0.20.3';
+const BUILD = 'v0.20.4';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
@@ -738,7 +738,7 @@ function switchSub(id){
   _proxies=null; _mainSel=null; _providerNodes=null; delays={};
   updateHomeServer(null); renderServerSheet(); updateCoverMeta();
   fetchSubMeta(sub); refreshServerList();
-  if(connected){ toast('Переподключаюсь к '+((sub&&(sub.title||sub.name))||'подписке')); reconnect(); }
+  if(connected){ suppressProxies=true; toast('Переподключаюсь к '+((sub&&(sub.title||sub.name))||'подписке')); reconnect(); }
   else toast('Активная: '+((sub&&(sub.title||sub.name))||''));
 }
 // список серверов новой подписки — сразу, не дожидаясь подключения
@@ -747,8 +747,9 @@ async function refreshServerList(){
   const id=activeSubId();
   try{ const r=await Vpn.fetchSub({url:sub, hwid:getHwid(), userAgent:getUserAgent()});
     if(activeSubId()!==id || !r || r.status<200 || r.status>=300 || !r.body) return;
-    const names=(r.names&&r.names.length)?r.names:parseSubNames(r.body);
-    if(names.length) localStorage.setItem(ck('mise_lastServers'), JSON.stringify({all:names, now:getPreferred()}));
+    const sheet=safeJson(r.sheet||'');
+    if(sheet&&Array.isArray(sheet.members)&&sheet.members.length){ localStorage.setItem(ck('mise_mainServers'), JSON.stringify({all:sheet.members, now:'', auto:sheet.auto||''})); }
+    else { const names=(r.names&&r.names.length)?r.names:parseSubNames(r.body); if(names.length) localStorage.setItem(ck('mise_lastServers'), JSON.stringify({all:names, now:getPreferred()})); }
     if(r.format) localStorage.setItem('mise_subFormat', r.formatLabel||r.format);
     renderServerSheet(); renderSubs();
   }catch{}
@@ -756,7 +757,7 @@ async function refreshServerList(){
 async function reconnect(){
   try{ await Vpn.stop(); }catch{}
   const t0=Date.now();
-  const t=setInterval(()=>{ if(!connected){ clearInterval(t); setTimeout(toggleConnect,400); } else if(Date.now()-t0>8000){ clearInterval(t); toast('Не удалось переподключиться — нажми «Подключить»'); } },300);
+  const t=setInterval(()=>{ if(!connected){ clearInterval(t); suppressProxies=false; setTimeout(toggleConnect,400); } else if(Date.now()-t0>8000){ clearInterval(t); suppressProxies=false; toast('Не удалось переподключиться — нажми «Подключить»'); } },300);
 }
 function delSub(id, ev){
   if(ev&&ev.stopPropagation) ev.stopPropagation();
@@ -932,8 +933,9 @@ function pickMainGroup(P, order){
   const sel=order.filter(n=>isSelector(P[n]));
   return sel.find(n=>/зарубеж|proxy|select|节点|節点|fast|быстр|основ|main/i.test(n)) || sel[0] || order[0] || null;
 }
+let suppressProxies=false;
 async function loadProxies(){
-  if(!connected) return;
+  if(!connected||suppressProxies) return;
   const r=await core('GET','/proxies');
   if(!r.ok || !r.data || !r.data.proxies){
     document.getElementById('servers-sub').textContent='ПОДКЛЮЧЕНИЕ…';
@@ -1084,7 +1086,7 @@ function renderServerSheet(){
   const list=document.getElementById('sheet-list'), cnt=document.getElementById('sheet-count'), subEl=document.getElementById('sheet-sub'); if(!list) return;
   const sub=activeSub(); subEl.textContent = sub ? (sub.name||subName(sub.url)) : 'Подписка не добавлена';
   const ZAP='<span class="sheet-auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>';
-  if(connected && _proxies){
+  if(connected && _proxies && !suppressProxies){
     const main=sheetMain(); const g=main?_proxies[main]:null;
     if(!g){ cnt.textContent='—'; list.innerHTML='<div class="sheet-empty">Ядро ещё поднимается…</div>'; return; }
     const all=g.all||[]; const now=g.now||'';

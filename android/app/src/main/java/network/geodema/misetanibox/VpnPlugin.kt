@@ -332,6 +332,7 @@ class VpnPlugin : Plugin() {
                 ret.put("proxies", converted.proxies)
                 ret.put("groups", converted.groups)
                 ret.put("notes", converted.notes)
+                ret.put("sheet", converted.sheet)
                 val names = com.getcapacitor.JSArray()
                 for (n in converted.names) names.put(n)
                 ret.put("names", names)

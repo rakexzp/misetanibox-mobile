@@ -1,6 +1,8 @@
 package mobilecore
 
 import (
+	"gopkg.in/yaml.v3"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -49,6 +51,9 @@ type ConvertResult struct {
 	// Notes holds one line per setting that could not be carried over, for
 	// the diagnostics screen. Empty when everything converted cleanly.
 	Notes string
+	// Sheet — JSON {main, auto, members[]}: состав главного селектора (политика MATCH)
+	// для листа серверов до подключения; только для mihomo-YAML.
+	Sheet string
 }
 
 // proxyURISchemes are the URI schemes a proxy subscription uses.
@@ -91,7 +96,7 @@ func ConvertSubscription(body string) (*ConvertResult, error) {
 	case FormatURI:
 		return convertURIList(payload)
 	default:
-		return &ConvertResult{Config: text, Format: FormatMihomo}, nil
+		return &ConvertResult{Config: text, Format: FormatMihomo, Sheet: mihomoSheet(text)}, nil
 	}
 }
 
@@ -331,4 +336,64 @@ func containsString(list []string, want string) bool {
 		}
 	}
 	return false
+}
+
+// mihomoSheet — {main, auto, members[]} главного селектора из YAML подписки.
+func mihomoSheet(text string) string {
+	var root struct {
+		Groups []struct {
+			Name    string   `yaml:"name"`
+			Type    string   `yaml:"type"`
+			Proxies []string `yaml:"proxies"`
+		} `yaml:"proxy-groups"`
+		Rules []string `yaml:"rules"`
+	}
+	if err := yaml.Unmarshal([]byte(text), &root); err != nil || len(root.Groups) == 0 {
+		return ""
+	}
+	main := ""
+	for _, r := range root.Rules {
+		if strings.HasPrefix(strings.ToUpper(strings.TrimSpace(r)), "MATCH,") {
+			if parts := strings.Split(r, ","); len(parts) >= 2 {
+				main = strings.TrimSpace(parts[1])
+			}
+		}
+	}
+	types := map[string]string{}
+	for _, gr := range root.Groups {
+		types[gr.Name] = strings.ToLower(gr.Type)
+	}
+	if main == "" || types[main] != "select" {
+		for _, gr := range root.Groups {
+			if strings.ToLower(gr.Type) == "select" && gr.Name != "GLOBAL" {
+				main = gr.Name
+				break
+			}
+		}
+	}
+	out := struct {
+		Main    string   `json:"main"`
+		Auto    string   `json:"auto"`
+		Members []string `json:"members"`
+	}{Main: main}
+	for _, gr := range root.Groups {
+		if gr.Name != main {
+			continue
+		}
+		for _, m := range gr.Proxies {
+			switch strings.ToUpper(m) {
+			case "DIRECT", "REJECT", "REJECT-DROP", "PASS", "COMPATIBLE":
+				continue
+			}
+			if types[m] == "url-test" && out.Auto == "" {
+				out.Auto = m
+			}
+			out.Members = append(out.Members, m)
+		}
+	}
+	if len(out.Members) == 0 {
+		return ""
+	}
+	b, _ := json.Marshal(out)
+	return string(b)
 }
