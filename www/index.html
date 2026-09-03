@@ -672,7 +672,7 @@ function navBack(){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'v0.21.1';
+const BUILD = 'v0.21.2';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
@@ -752,7 +752,7 @@ async function refreshServerList(){
     if(!r || r.status<200 || r.status>=300 || !r.body){ const why=r&&r.status?('HTTP '+r.status):(r&&r.error)||'нет ответа'; localStorage.setItem(ck('mise_subErr'), why); renderServerSheet(); toast('Подписка недоступна: '+why); return; }
     localStorage.removeItem(ck('mise_subErr'));
     const sheet=safeJson(r.sheet||'');
-    if(sheet&&Array.isArray(sheet.members)&&sheet.members.length){ localStorage.setItem(ck('mise_mainServers'), JSON.stringify({all:sheet.members, now:'', auto:sheet.auto||''})); }
+    if(sheet&&Array.isArray(sheet.members)&&sheet.members.length){ localStorage.setItem(ck('mise_mainServers'), JSON.stringify({all:sheet.members, now:'', auto:sheet.auto||'', groups:sheet.groups||{}})); }
     else { const names=(r.names&&r.names.length)?r.names:parseSubNames(r.body); if(names.length) localStorage.setItem(ck('mise_lastServers'), JSON.stringify({all:names, now:getPreferred()})); }
     if(r.format) localStorage.setItem('mise_subFormat', r.formatLabel||r.format);
     renderServerSheet(); renderSubs();
@@ -967,7 +967,7 @@ function renderProxies(){
     return;
   }
   document.getElementById('servers-sub').textContent=order.length+' ГРУПП';
-  const ping=n=>{ const d=delays[n]; if(d===undefined) return ''; if(pingAsIcon()) return `<span class="ping-ico ${d>0?'ok':'bad'}"></span>`; return d>0?`<span class="ping" style="color:${pingColor(d)}">${d} мс</span>`:`<span class="ping" style="color:var(--bad)">—</span>`; };
+  const ping=n=>{ const d=itemDelay(n); if(d===undefined) return ''; if(pingAsIcon()) return `<span class="ping-ico ${d>0?'ok':'bad'}"></span>`; return d>0?`<span class="ping" style="color:${pingColor(d)}">${d} мс</span>`:`<span class="ping" style="color:var(--bad)">—</span>`; };
   const GROUP_TAG={selector:'СЕЛЕКТОР',urltest:'АВТО · ПО ПИНГУ',fallback:'ФОЛБЭК',loadbalance:'БАЛАНС',relay:'ЦЕПЬ'};
   let html=`<div class="row" onclick="pingAll()"><div class="grow"><div class="t">Проверить задержки</div><div class="s">ПИНГ ВСЕХ СЕРВЕРОВ</div></div><span class="chev">⟳</span></div>`;
   for(const gn of order){
@@ -1087,7 +1087,18 @@ function sheetMain(){ if(!_proxies) return null; const order=orderedGroups(_prox
 function openServerSheet(){ const el=document.getElementById('server-sheet'); if(!el) return; el.classList.remove('hidden'); renderServerSheet(); if(connected) loadProxies(); else if(!safeJson(localStorage.getItem(ck('mise_lastServers')))) previewServers().then(renderServerSheet); }
 function closeServerSheet(){ const el=document.getElementById('server-sheet'); if(el) el.classList.add('hidden'); }
 function pingAsIcon(){ const f=subFlags(); return f.pingResult==='icon' || ((f.pingType==='tcp'||f.pingType==='icmp') && f.pingResult!=='time'); }
-function sheetPing(n){ const d=delays[n]; if(d===undefined) return ''; if(pingAsIcon()) return `<span class="ping-ico ${d>0?'ok':'bad'}"></span>`; return d>0 ? d+' мс' : 'таймаут'; }
+// пинг пункта листа: у группы (страны) — лучший из её узлов (онлайн: по .all ядра, оффлайн: по составу из YAML)
+function itemDelay(n){
+  if(delays[n]!==undefined) return delays[n];
+  let members=null;
+  if(_proxies&&_proxies[n]&&Array.isArray(_proxies[n].all)) members=_proxies[n].all;
+  else { const c=safeJson(localStorage.getItem(ck('mise_mainServers'))); if(c&&c.groups&&c.groups[n]) members=c.groups[n]; }
+  if(!members) return undefined;
+  let best; let seen=false;
+  for(const m of members){ const d=(delays[m]!==undefined)?delays[m]:(function(){ const c2=safeJson(localStorage.getItem(ck('mise_mainServers'))); const mm=c2&&c2.groups&&c2.groups[m]; if(!mm) return undefined; let b; for(const x of mm){ if(delays[x]>0&&(b===undefined||delays[x]<b)) b=delays[x]; else if(delays[x]!==undefined&&b===undefined) b=-1; } return b; })(); if(d===undefined) continue; seen=true; if(d>0&&(best===undefined||best<0||d<best)) best=d; else if(best===undefined) best=d; }
+  return seen?best:undefined;
+}
+function sheetPing(n){ const d=itemDelay(n); if(d===undefined) return ''; if(pingAsIcon()) return `<span class="ping-ico ${d>0?'ok':'bad'}"></span>`; return d>0 ? d+' мс' : 'таймаут'; }
 function renderServerSheet(){
   const list=document.getElementById('sheet-list'), cnt=document.getElementById('sheet-count'), subEl=document.getElementById('sheet-sub'); if(!list) return;
   const sub=activeSub(); subEl.textContent = sub ? (sub.name||subName(sub.url)) : 'Подписка не добавлена';

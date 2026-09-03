@@ -374,10 +374,16 @@ func mihomoSheet(text string) string {
 		}
 	}
 	out := struct {
-		Main    string   `json:"main"`
-		Auto    string   `json:"auto"`
-		Members []string `json:"members"`
-	}{Main: main}
+		Main    string              `json:"main"`
+		Auto    string              `json:"auto"`
+		Members []string            `json:"members"`
+		Groups  map[string][]string `json:"groups"`
+	}{Main: main, Groups: map[string][]string{}}
+	for _, gr := range root.Groups {
+		if gr.Name != main && len(gr.Proxies) > 0 {
+			out.Groups[gr.Name] = gr.Proxies
+		}
+	}
 	for _, gr := range root.Groups {
 		if gr.Name != main {
 			continue

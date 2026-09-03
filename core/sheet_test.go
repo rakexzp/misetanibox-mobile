@@ -17,7 +17,7 @@ rules:
   - MATCH,MAIN
 `
 	s := mihomoSheet(cfg)
-	for _, want := range []string{`"main":"MAIN"`, `"auto":"Fast"`, `"members":["Fast","Europe","NL"]`} {
+	for _, want := range []string{`"main":"MAIN"`, `"auto":"Fast"`, `"members":["Fast","Europe","NL"]`, `"Europe":["NL"]`} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("нет %s в %s", want, s)
 		}
