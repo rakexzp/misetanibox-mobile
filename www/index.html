@@ -1143,7 +1143,7 @@ function renderSubs(){
   const fmt=localStorage.getItem('mise_subFormat');
   let html=list.map(s=>{
     const on=s.id===act; const u=s.userinfo||{};
-    const traffic=(u.total||u.download||u.upload)?fmtBytes((u.download||0)+(u.upload||0))+(u.total?' / '+fmtBytes(u.total):''):'';
+    const used=(u.download||0)+(u.upload||0); const traffic=u.total?fmtBytes(used)+' / '+fmtBytes(u.total):(used?'ИСПОЛЬЗОВАНО '+fmtBytes(used):'');
     const parts=[on?'АКТИВНА':'', traffic, subExpiryText(u), (on&&fmt)?fmt.toUpperCase():''].filter(Boolean);
     const sub=parts.length?parts.join(' · '):esc(s.url.replace(/^https?:\/\//,'').slice(0,38));
     const logo=s.logo?`<img class="sub-logo" src="${esc(s.logo)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'sub-logo dot'}))">`:`<span class="sub-logo dot${on?' on':''}"></span>`;
@@ -1460,7 +1460,8 @@ async function checkUpdate(){
   const el=document.getElementById('upd-sub');
   if(!Vpn||!Vpn.httpGet){ if(el) el.textContent=BUILD.toUpperCase()+' · ТОЛЬКО В ПРИЛОЖЕНИИ'; return; }
   try{ const r=await Vpn.httpGet({url:UPDATE_URL+'?t='+Date.now()}); const j=(r&&r.status===200)?JSON.parse(r.body):null;
-    if(j&&j.tag_name&&verGt(j.tag_name,BUILD)){ updInfo=j; if(el) el.textContent='ДОСТУПНА '+String(j.tag_name).toUpperCase()+' · ТАП — СКАЧАТЬ'; toast('Доступно обновление '+j.tag_name); }
+    if(!j){ updInfo=null; if(el) el.textContent=BUILD.toUpperCase()+' · НЕ УДАЛОСЬ ПРОВЕРИТЬ'; }
+    else if(j.tag_name&&verGt(j.tag_name,BUILD)){ updInfo=j; if(el) el.textContent='ДОСТУПНА '+String(j.tag_name).toUpperCase()+' · ТАП — СКАЧАТЬ'; toast('Доступно обновление '+j.tag_name); }
     else { updInfo=null; if(el) el.textContent=BUILD.toUpperCase()+' · АКТУАЛЬНАЯ'; }
   }catch{ if(el) el.textContent=BUILD.toUpperCase()+' · НЕ УДАЛОСЬ ПРОВЕРИТЬ'; }
 }
