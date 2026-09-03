@@ -327,6 +327,9 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 .sub-announce{white-space:pre-line}
 .ping-ico{display:inline-block;width:9px;height:9px;border-radius:50%;background:#30d158;box-shadow:0 0 6px rgba(48,209,88,.6)}
 .ping-ico.bad{background:#ff453a;box-shadow:0 0 6px rgba(255,69,58,.5)}
+/* клавиатура: листы с полями ввода поднимаются над ней (--kb из MainActivity) */
+.sub-modal{bottom:var(--kb,0px)}
+.sub-modal-card{max-height:calc(88vh - var(--kb,0px))}
 </style>
 </head>
 <body>
@@ -672,7 +675,7 @@ function navBack(){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'v0.21.5';
+const BUILD = 'v0.21.6';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
