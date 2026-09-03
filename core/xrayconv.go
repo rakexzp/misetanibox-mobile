@@ -54,6 +54,8 @@ type ConvertResult struct {
 	// Sheet — JSON {main, auto, members[]}: состав главного селектора (политика MATCH)
 	// для листа серверов до подключения; только для mihomo-YAML.
 	Sheet string
+	// Nodes — JSON {имя: "host:port"} inline-узлов (для tcp/icmp-пинга в приложении); только mihomo-YAML.
+	Nodes string
 }
 
 // proxyURISchemes are the URI schemes a proxy subscription uses.
@@ -96,7 +98,7 @@ func ConvertSubscription(body string) (*ConvertResult, error) {
 	case FormatURI:
 		return convertURIList(payload)
 	default:
-		return &ConvertResult{Config: text, Format: FormatMihomo, Sheet: mihomoSheet(text)}, nil
+		return &ConvertResult{Config: text, Format: FormatMihomo, Sheet: mihomoSheet(text), Nodes: mihomoNodes(text)}, nil
 	}
 }
 
@@ -395,5 +397,28 @@ func mihomoSheet(text string) string {
 		return ""
 	}
 	b, _ := json.Marshal(out)
+	return string(b)
+}
+
+// mihomoNodes — {имя: "server:port"} по proxies подписки.
+func mihomoNodes(text string) string {
+	var root struct {
+		Proxies []struct {
+			Name   string      `yaml:"name"`
+			Server string      `yaml:"server"`
+			Port   interface{} `yaml:"port"`
+		} `yaml:"proxies"`
+	}
+	if err := yaml.Unmarshal([]byte(text), &root); err != nil || len(root.Proxies) == 0 {
+		return ""
+	}
+	m := map[string]string{}
+	for _, p := range root.Proxies {
+		if p.Name == "" || p.Server == "" || p.Port == nil {
+			continue
+		}
+		m[p.Name] = p.Server + ":" + strings.TrimSpace(strings.Trim(fmt.Sprint(p.Port), "\""))
+	}
+	b, _ := json.Marshal(m)
 	return string(b)
 }

@@ -19,6 +19,9 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(VpnPlugin.class);
         super.onCreate(savedInstanceState);
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 41);
+        }
 
         // edge-to-edge: обложка едет под статус-бар и панель жестов; WebView сам инсеты
         // системных панелей не отдаёт (env(safe-area-*) только для выреза) → шлём в CSS

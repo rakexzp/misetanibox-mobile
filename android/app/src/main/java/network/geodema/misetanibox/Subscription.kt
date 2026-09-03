@@ -43,6 +43,8 @@ object Subscription {
         val notes: String,
         /** JSON {main, auto, members[]} главного селектора для листа до подключения (mihomo) */
         val sheet: String = "",
+        /** JSON {имя: "host:port"} узлов для tcp/icmp-пинга (mihomo) */
+        val nodes: String = "",
     )
 
     /** Пустой/пробельный UA означает «настройка не трогалась». */
@@ -62,6 +64,30 @@ object Subscription {
             return try { String(android.util.Base64.decode(v.substring(7), android.util.Base64.DEFAULT), Charsets.UTF_8).trim() } catch (_: Exception) { "" }
         }
         return v
+    }
+
+    // запасной адрес: голый хост → путь/query основной ссылки, иначе как есть (как в ПК-клиенте)
+    fun resolveFallbackUrl(primary: String, fb: String): String {
+        return try {
+            val f = java.net.URI(fb); if (f.host.isNullOrEmpty()) return ""
+            if (f.path.trim('/').isNotEmpty() || !f.query.isNullOrEmpty()) return fb
+            val p = java.net.URI(primary)
+            java.net.URI(f.scheme ?: "https", f.authority, p.path, p.query, null).toString()
+        } catch (_: Exception) { "" }
+    }
+
+    /** Основная ссылка, потом запасные по очереди; первая с 2xx выигрывает. */
+    fun fetchAny(url: String, hwid: String, userAgent: String, fallbacks: List<String>): Fetched {
+        var last = fetch(url, hwid, userAgent)
+        if (last.status in 200..299 && last.body.isNotBlank()) return last
+        val seen = HashSet<String>(); seen.add(url)
+        for (fb in fallbacks) {
+            val u = resolveFallbackUrl(url, fb.trim()); if (u.isEmpty() || !seen.add(u)) continue
+            val r = fetch(u, hwid, userAgent)
+            if (r.status in 200..299 && r.body.isNotBlank()) return r
+            last = r
+        }
+        return last
     }
 
     fun fetch(url: String, hwid: String, userAgent: String): Fetched {
@@ -90,6 +116,20 @@ object Subscription {
             meta["announce"] = profileTitle(conn.getHeaderField("announce"))
             meta["userinfo"] = conn.getHeaderField("subscription-userinfo")?.trim() ?: ""
             meta["updateInterval"] = conn.getHeaderField("profile-update-interval")?.trim() ?: ""
+            // запасные адреса подписки (Happ: fallback-url; ПК-клиент: x-sub-fallback / x-fallback-url / profile-fallback-url)
+            val fbs = ArrayList<String>()
+            for (h in listOf("fallback-url", "x-sub-fallback", "x-fallback-url", "profile-fallback-url")) {
+                for (v in conn.headerFields[h] ?: emptyList()) for (part in v.split(',', ';', '\n', ' ', '\t')) {
+                    val u = part.trim(); if (u.isNotEmpty() && !fbs.contains(u)) fbs.add(u)
+                }
+            }
+            meta["fallbacks"] = fbs.joinToString("\n")
+            meta["notifExpire"] = conn.getHeaderField("notification-subs-expire")?.trim() ?: ""
+            meta["pingType"] = conn.getHeaderField("ping-type")?.trim() ?: ""
+            meta["checkUrl"] = conn.getHeaderField("check-url-via-proxy")?.trim() ?: ""
+            meta["pingResult"] = conn.getHeaderField("ping-result")?.trim() ?: ""
+            meta["updateOnOpen"] = conn.getHeaderField("update-on-open")?.trim() ?: ""
+            meta["usedUrl"] = url
             conn.disconnect()
             Fetched(code, if (code in 200..299) text else "", if (code in 200..299) null else "HTTP $code", title, meta)
         } catch (e: Exception) {
@@ -116,6 +156,7 @@ object Subscription {
             names = r.names.split('\n').map { it.trim() }.filter { it.isNotEmpty() },
             notes = r.notes,
             sheet = r.sheet,
+            nodes = r.nodes,
         )
     }
 

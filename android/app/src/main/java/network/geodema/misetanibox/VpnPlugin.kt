@@ -26,6 +26,7 @@ class VpnPlugin : Plugin() {
     private var pendingRules = arrayOf<String>()
     private var pendingChains = "[]"
     private var pendingWarp = ""
+    private var pendingFallbacks = arrayOf<String>()
     private var pendingServiceGroups = arrayOf<String>()
     private var receiver: BroadcastReceiver? = null
 
@@ -73,6 +74,9 @@ class VpnPlugin : Plugin() {
         // цепочки приходят готовым JSON-массивом [{name, nodes:[...]}], WARP — JSON кредов или ""
         pendingChains = call.getArray("chains", com.getcapacitor.JSArray())?.toString() ?: "[]"
         pendingWarp = call.getString("warp") ?: ""
+        val fbArr = call.getArray("fallbacks", com.getcapacitor.JSArray()); val fbList = ArrayList<String>()
+        for (i in 0 until (fbArr?.length() ?: 0)) fbArr?.optString(i)?.let { if (it.isNotBlank()) fbList.add(it) }
+        pendingFallbacks = fbList.toTypedArray()
         // имена select-групп сервисов из конфигуратора селекторов
         val sgArr = call.getArray("serviceGroups", com.getcapacitor.JSArray())
         val sgList = ArrayList<String>()
@@ -107,7 +111,7 @@ class VpnPlugin : Plugin() {
         // дублируем параметры в prefs, чтобы плитка/виджет/автозапуск могли поднять туннель без WebView
         VpnPrefs.saveLaunchState(
             context, pendingSubUrl, pendingHwid, pendingUserAgent, pendingSplitMode, pendingSplitApps,
-            pendingRules, pendingChains, pendingServiceGroups, pendingWarp,
+            pendingRules, pendingChains, pendingServiceGroups, pendingWarp, pendingFallbacks,
         )
         val i = Intent(context, MihomoVpnService::class.java)
         i.action = MihomoVpnService.ACTION_START
@@ -119,6 +123,7 @@ class VpnPlugin : Plugin() {
         i.putExtra(MihomoVpnService.EXTRA_RULES, pendingRules)
         i.putExtra(MihomoVpnService.EXTRA_CHAINS, pendingChains)
         i.putExtra(MihomoVpnService.EXTRA_WARP, pendingWarp)
+        i.putExtra(MihomoVpnService.EXTRA_FALLBACKS, pendingFallbacks)
         i.putExtra(MihomoVpnService.EXTRA_SERVICE_GROUPS, pendingServiceGroups)
         context.startForegroundService(i)
     }
@@ -244,6 +249,45 @@ class VpnPlugin : Plugin() {
         }.start()
     }
 
+    // tcp-пинг: время TCP-коннекта до host:port узла, мс (или -1)
+    @PluginMethod
+    fun tcpPing(call: PluginCall) {
+        val host = call.getString("host") ?: ""; val port = call.getInt("port") ?: 443
+        Thread {
+            val ret = JSObject()
+            val t0 = System.nanoTime()
+            try {
+                java.net.Socket().use { it.connect(java.net.InetSocketAddress(host, port), 3000) }
+                ret.put("ms", ((System.nanoTime() - t0) / 1_000_000).toInt())
+            } catch (_: Exception) { ret.put("ms", -1) }
+            call.resolve(ret)
+        }.start()
+    }
+
+    // icmp-пинг через системный /system/bin/ping (raw-сокет приложению не дают)
+    @PluginMethod
+    fun icmpPing(call: PluginCall) {
+        val host = call.getString("host") ?: ""
+        Thread {
+            val ret = JSObject()
+            try {
+                val pr = ProcessBuilder("/system/bin/ping", "-c", "1", "-W", "2", host).redirectErrorStream(true).start()
+                val out = pr.inputStream.bufferedReader().use { it.readText() }; pr.waitFor()
+                val m = Regex("time=([0-9.]+)").find(out)
+                ret.put("ms", if (m != null) m.groupValues[1].toDouble().toInt() else -1)
+            } catch (_: Exception) { ret.put("ms", -1) }
+            call.resolve(ret)
+        }.start()
+    }
+
+    // напоминания об окончании подписки (notification-subs-expire): за 3/2/1 день
+    @PluginMethod
+    fun scheduleExpiryReminder(call: PluginCall) {
+        ExpiryReminder.save(context, call.getString("name") ?: "", (call.getDouble("expireAt") ?: 0.0).toLong(), call.getBoolean("enabled", false) ?: false)
+        ExpiryReminder.schedule(context)
+        call.resolve()
+    }
+
     @PluginMethod
     fun setAutostart(call: PluginCall) {
         VpnPrefs.setAutostart(context, call.getBoolean("on", false) ?: false)
@@ -312,9 +356,11 @@ class VpnPlugin : Plugin() {
         val url = call.getString("url") ?: ""
         val hwid = call.getString("hwid") ?: ""
         val userAgent = Subscription.userAgentOr(call.getString("userAgent"))
+        val fbArr = call.getArray("fallbacks", com.getcapacitor.JSArray()); val fbs = ArrayList<String>()
+        for (i in 0 until (fbArr?.length() ?: 0)) fbArr?.optString(i)?.let { if (it.isNotBlank()) fbs.add(it) }
         Thread {
             val ret = JSObject()
-            val fetched = Subscription.fetch(url, hwid, userAgent)
+            val fetched = Subscription.fetchAny(url, hwid, userAgent, fbs)
             ret.put("status", fetched.status)
             ret.put("title", fetched.title)
             for ((k, x) in fetched.meta) ret.put(k, x)
@@ -333,6 +379,7 @@ class VpnPlugin : Plugin() {
                 ret.put("groups", converted.groups)
                 ret.put("notes", converted.notes)
                 ret.put("sheet", converted.sheet)
+                ret.put("nodes", converted.nodes)
                 val names = com.getcapacitor.JSArray()
                 for (n in converted.names) names.put(n)
                 ret.put("names", names)

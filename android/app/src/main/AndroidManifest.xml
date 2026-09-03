@@ -64,6 +64,7 @@
         </receiver>
 
         <!-- Автозапуск после перезагрузки -->
+        <receiver android:name=".ExpiryReminderReceiver" android:exported="false" />
         <receiver
             android:name=".BootReceiver"
             android:enabled="true"

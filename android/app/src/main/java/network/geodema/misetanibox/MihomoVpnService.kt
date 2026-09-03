@@ -36,6 +36,7 @@ class MihomoVpnService : VpnService() {
         const val EXTRA_RULES = "rules"
         const val EXTRA_CHAINS = "chains" // JSON: [{"name":"...","nodes":["..."]}]
         const val EXTRA_WARP = "warp"     // JSON кредов WARP или ""
+        const val EXTRA_FALLBACKS = "fallbacks" // запасные адреса подписки
         const val EXTRA_SERVICE_GROUPS = "service_groups" // имена select-групп сервисов (use: main)
         // префикс имени группы-цепочки в списке серверов
         const val CHAIN_PREFIX = "🔗 "
@@ -60,6 +61,7 @@ class MihomoVpnService : VpnService() {
                 val rules = intent?.getStringArrayExtra(EXTRA_RULES) ?: arrayOf()
                 val chains = intent?.getStringExtra(EXTRA_CHAINS) ?: "[]"
                 val warp = intent?.getStringExtra(EXTRA_WARP) ?: ""
+                val fallbacks = intent?.getStringArrayExtra(EXTRA_FALLBACKS) ?: arrayOf()
                 val serviceGroups = intent?.getStringArrayExtra(EXTRA_SERVICE_GROUPS) ?: arrayOf()
                 if (subUrl.isEmpty()) {
                     // сюда попадаем при рестарте сервиса системой с пустым intent
@@ -69,7 +71,7 @@ class MihomoVpnService : VpnService() {
                 // Уведомление обязано появиться сразу после startForegroundService,
                 // поэтому показываем его на главном потоке, а запуск ядра уводим в фон.
                 startForegroundNotif()
-                worker.execute { startTunnel(subUrl, hwid, userAgent, splitMode, splitApps, rules, chains, warp, serviceGroups) }
+                worker.execute { startTunnel(subUrl, hwid, userAgent, splitMode, splitApps, rules, chains, warp, serviceGroups, fallbacks) }
             }
         }
         // не START_STICKY: иначе система переподнимет сервис с пустым intent и без подписки
@@ -86,12 +88,13 @@ class MihomoVpnService : VpnService() {
         chains: String,
         warp: String,
         serviceGroups: Array<String>,
+        fallbacks: Array<String> = arrayOf(),
     ) {
         if (running) return
         try {
             // Классика: сперва тянем конфиг подписки (со всеми селекторами автора). Если не
             // удалось — не поднимаем TUN, иначе интернет пропадёт при мёртвом туннеле.
-            val fetched = Subscription.fetch(subUrl, hwid, userAgent)
+            val fetched = Subscription.fetchAny(subUrl, hwid, userAgent, fallbacks.toList())
             if (fetched.body.isBlank()) {
                 val reason = fetched.error ?: "пустой ответ"
                 broadcast("error", "не удалось загрузить конфиг подписки ($reason) — проверьте ссылку и интернет")
