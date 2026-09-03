@@ -12,6 +12,7 @@ import (
 	"github.com/metacubex/mihomo/hub"
 	"github.com/metacubex/mihomo/hub/executor"
 	"github.com/metacubex/mihomo/listener"
+	LC "github.com/metacubex/mihomo/listener/config"
 	"github.com/metacubex/mihomo/log"
 	"github.com/metacubex/mihomo/tunnel"
 	tun "github.com/metacubex/sing-tun"
@@ -74,7 +75,12 @@ func SetProtect(p SocketProtector) {
 
 // Start применяет YAML-конфиг подписки и заводит TUN на переданном fd
 // (fd — от Android VpnService.establish()). Возвращает "" при успехе или текст ошибки.
-func Start(homeDir, configYAML string, fd int) string {
+func Start(homeDir, configYAML string, fd int) (ret string) {
+	defer func() {
+		if r := recover(); r != nil {
+			ret = fmt.Sprintf("ядро упало при старте: %v", r)
+		}
+	}()
 	// Стек gvisor компилируется только с -tags with_gvisor. Без тега sing-tun подставляет
 	// заглушку: TUN не поднимается, а hub.ApplyConfig ошибку не возвращает — приложение
 	// думает, что подключилось, при этом трафик уходит в никуда. Проверяем явно.
@@ -89,21 +95,26 @@ func Start(homeDir, configYAML string, fd int) string {
 	if err != nil {
 		return err.Error()
 	}
-	// Форсим корректные Android-настройки TUN поверх конфига подписки.
-	cfg.General.Tun.Enable = true
-	cfg.General.Tun.FileDescriptor = fd
-	cfg.General.Tun.Stack = C.TunGvisor
-	cfg.General.Tun.AutoRoute = false
-	cfg.General.Tun.AutoDetectInterface = false
-	// Адрес tun-интерфейса ядра ОБЯЗАН совпадать с VpnService.addAddress("172.19.0.1", 30).
-	// Без этого gVisor-нетстек ядра поднимается на дефолтном 198.18.0.1/30 и не считает
-	// 172.19.0.2 (addDnsServer в Kotlin) своим локальным адресом → hijacknутый DNS-запрос
-	// приложения некуда ответить → DNS_PROBE_STARTED («подключено, но DNS не резолвит»).
-	// Плюс дефолт 198.18.0.1 лежит ВНУТРИ fake-ip-range 198.18.0.0/16 (коллизия адресов).
-	cfg.General.Tun.Inet4Address = []netip.Prefix{netip.MustParsePrefix("172.19.0.1/30")}
-	if len(cfg.General.Tun.DNSHijack) == 0 {
-		cfg.General.Tun.DNSHijack = []string{"any:53"}
+	// TUN собираем сами, tun-блок подписки НЕ наследуем: чужие strict-route/auto-redirect/
+	// route-address на Android без рута роняют sing_tun.New, а его cleanup паникует
+	// (nil Listener.Close) → падает весь процесс.
+	cfg.General.Tun = LC.Tun{
+		Enable:              true,
+		FileDescriptor:      fd,
+		Stack:               C.TunGvisor,
+		AutoRoute:           false,
+		AutoDetectInterface: false,
+		DNSHijack:           []string{"any:53"},
+		// адрес ОБЯЗАН совпадать с VpnService.addAddress("172.19.0.1", 30): иначе gVisor
+		// не считает 172.19.0.2 (addDnsServer) своим → DNS_PROBE_STARTED; дефолт 198.18.0.1
+		// к тому же лежит внутри fake-ip-range
+		Inet4Address: []netip.Prefix{netip.MustParsePrefix("172.19.0.1/30")},
+		MTU:          9000,
+		UDPTimeout:   300,
 	}
+	// redir/tproxy-листенеры на Android без рута не поднимаются («operation not permitted»)
+	cfg.General.RedirPort = 0
+	cfg.General.TProxyPort = 0
 	// Классический режим: запускаем КОНФИГ подписки как есть (со всеми proxy-group'ами
 	// автора). Форсим только адрес API, чтобы coreRequest из приложения всегда достучался
 	// (в подписке external-controller может быть любым или с секретом).
