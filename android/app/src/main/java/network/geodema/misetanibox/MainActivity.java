@@ -34,6 +34,9 @@ public class MainActivity extends BridgeActivity {
         final float d = getResources().getDisplayMetrics().density;
         ViewCompat.setOnApplyWindowInsetsListener(wv, (v, insets) -> {
             Insets sb = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
+            // клавиатура: без decorFitsSystemWindows WebView сам не ужимается → паддинг на высоту IME
+            int ime = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom;
+            v.setPadding(0, 0, 0, Math.max(0, ime - sb.bottom));
             insetsJs = "document.documentElement.style.setProperty('--sat','" + (int) (sb.top / d) + "px');"
                      + "document.documentElement.style.setProperty('--sab','" + (int) (sb.bottom / d) + "px');";
             wv.evaluateJavascript(insetsJs, null);
