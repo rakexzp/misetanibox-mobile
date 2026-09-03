@@ -670,7 +670,7 @@ function navBack(){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'v0.20.4';
+const BUILD = 'v0.20.5';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
@@ -1035,18 +1035,19 @@ function renderPreviewServers(names){
     }).join('');
 }
 async function previewServers(){
-  const sub=getSubUrl();
+  const sub=getSubUrl(); const reqId=activeSubId();
   const subEl=document.getElementById('servers-sub'), list=document.getElementById('server-list');
   if(!sub){ subEl.textContent='НЕТ ПОДПИСКИ'; list.innerHTML='<div class="list-note">Добавьте подписку на вкладке «Подписки».</div>'; return; }
   if(!Vpn || !Vpn.fetchSub){ renderCachedServers(); return; }
   subEl.textContent='ЗАГРУЗКА…'; list.innerHTML='<div class="list-note">Загружаю список серверов из подписки…</div>';
   const r=await Vpn.fetchSub({url:sub, hwid:getHwid(), userAgent:getUserAgent()});
+  if(activeSubId()!==reqId) return;
   if(!r || r.status<200 || r.status>=300 || !r.body){ dbg('fetchSub status='+(r&&r.status)+' err='+((r&&r.error)||'')); renderCachedServers(); return; }
   // fetchSub отдаёт уже сконвертированный mihomo-YAML, каким бы ни был формат панели
   if(r.format){ dbg('формат подписки: '+r.format+' узлов='+(r.proxies||0)+' групп='+(r.groups||0)); localStorage.setItem('mise_subFormat', r.formatLabel||r.format); }
   if(r.notes) dbg('конвертер: '+String(r.notes).replace(/\n/g,' | '));
   if(r.error) dbg('fetchSub: '+r.error);
-  if(r.title){ const l=subs(); const a=l.find(x=>x.id===activeSubId())||l[0]; if(a&&a.title!==r.title){ a.title=r.title; saveSubs(l); } }
+  if(r.title){ const l=subs(); const a=l.find(x=>x.id===reqId); if(a&&a.title!==r.title){ a.title=r.title; saveSubs(l); updateCoverMeta(); } }
   // Для сконвертированных форматов имена приходят от самого конвертера: он уже знает,
   // что узлы балансировщика предлагаются через группу, а не по отдельности.
   // Для сквозного mihomo-конфига их всё ещё приходится вытаскивать из YAML.
