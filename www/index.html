@@ -672,7 +672,7 @@ function navBack(){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'v0.21.0';
+const BUILD = 'v0.21.1';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
@@ -1118,11 +1118,11 @@ async function selectNode(group, name){
   else toast('Не удалось выбрать (для авто-групп выбор недоступен)');
 }
 async function pingAll(){
-  if(!connected) return;
-  if(!_proxies){ const r=await core('GET','/proxies'); if(r.ok&&r.data) _proxies=r.data.proxies; }
-  const P=_proxies; if(!P){ toast('Нет данных'); return; }
-  const skip=['DIRECT','REJECT','REJECT-DROP','PASS','COMPATIBLE','GLOBAL'];
-  const leafs=[...new Set(Object.keys(P).filter(n=>!isGroup(P[n]) && !skip.includes(n)))];
+  const f0=subFlags(); const offlineNative=!connected&&(f0.pingType==='tcp'||f0.pingType==='icmp')&&activeSub()&&activeSub().nodes;
+  if(!connected&&!offlineNative) return;
+  if(connected&&!_proxies){ const r=await core('GET','/proxies'); if(r.ok&&r.data) _proxies=r.data.proxies; }
+  const P=_proxies||{}; const skip=['DIRECT','REJECT','REJECT-DROP','PASS','COMPATIBLE','GLOBAL'];
+  const leafs=connected?[...new Set(Object.keys(P).filter(n=>!isGroup(P[n]) && !skip.includes(n)))]:Object.keys(activeSub().nodes);
   if(!leafs.length){ toast('Нет серверов'); return; }
   toast('Проверка задержек…');
   const f=subFlags(); const nodes=(activeSub()&&activeSub().nodes)||{};
@@ -1136,7 +1136,7 @@ async function pingAll(){
     const rr=await core('GET','/proxies/'+encodeURIComponent(n)+'/delay?timeout=3000&url='+encodeURIComponent(checkUrl));
     delays[n]=(rr.data && typeof rr.data.delay==='number')?rr.data.delay:-1;
   }));
-  renderProxies();
+  if(connected) renderProxies(); else renderServerSheet();
 }
 
 // ---------- подписка (модалка вместо prompt) ----------
@@ -1484,7 +1484,8 @@ async function fetchSubMeta(sub){
     a.title=r.title||''; a.logo=r.logo||''; a.webPage=r.webPage||''; a.supportUrl=r.supportUrl||''; a.announce=r.announce||'';
     a.userinfo=parseUserinfo(r.userinfo||''); a.metaAt=Date.now();
     a.fallbacks=String(r.fallbacks||'').split('\n').map(x=>x.trim()).filter(Boolean);
-    a.flags={notif:/^(1|true|yes|on)$/i.test(r.notifExpire||''), pingType:String(r.pingType||'').toLowerCase(), checkUrl:r.checkUrl||'', pingResult:String(r.pingResult||'').toLowerCase(), updateOnOpen:/^(1|true|yes|on)$/i.test(r.updateOnOpen||'')};
+    const ne=String(r.notifExpire||'').trim().toLowerCase(); const neOn=!!ne&&!/^(0|false|no|off)$/.test(ne); const neDays=/^\d+$/.test(ne)?Math.min(30,Math.max(1,parseInt(ne,10))):3;
+    a.flags={notif:neOn, notifDays:neDays, pingType:String(r.pingType||'').toLowerCase(), checkUrl:r.checkUrl||'', pingResult:String(r.pingResult||'').toLowerCase(), updateOnOpen:/^(1|true|yes|on)$/i.test(r.updateOnOpen||'')};
     if(r.nodes){ const nm=safeJson(r.nodes); if(nm) a.nodes=nm; }
     if(r.usedUrl&&r.usedUrl!==a.url) toast('Подписка через запасной адрес');
     scheduleReminder(a);
@@ -1497,7 +1498,7 @@ function subFallbacks(sub){ return (sub&&Array.isArray(sub.fallbacks))?sub.fallb
 function scheduleReminder(sub){
   if(!Vpn||!Vpn.scheduleExpiryReminder||!sub||sub.id!==activeSubId()) return;
   const exp=(sub.userinfo&&sub.userinfo.expire)||0;
-  Vpn.scheduleExpiryReminder({name: sub.title||sub.name||'', expireAt: exp, enabled: !!(sub.flags&&sub.flags.notif&&exp)}).catch(()=>{});
+  Vpn.scheduleExpiryReminder({name: sub.title||sub.name||'', expireAt: exp, enabled: !!(sub.flags&&sub.flags.notif&&exp), days: (sub.flags&&sub.flags.notifDays)||3}).catch(()=>{});
 }
 function parseUserinfo(str){ const o={}; for(const kv of String(str).split(';')){ const [k,v]=kv.split('='); if(k&&v!==undefined){ const n=Number(v.trim()); o[k.trim()]=isNaN(n)?v.trim():n; } } return o; }
 function subExpiryText(u){ if(!u||!u.expire) return ''; const d=new Date(u.expire*1000); return 'ДО '+d.toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit',year:'2-digit'}); }

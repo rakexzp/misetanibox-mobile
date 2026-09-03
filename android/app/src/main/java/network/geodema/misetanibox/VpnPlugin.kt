@@ -283,7 +283,7 @@ class VpnPlugin : Plugin() {
     // напоминания об окончании подписки (notification-subs-expire): за 3/2/1 день
     @PluginMethod
     fun scheduleExpiryReminder(call: PluginCall) {
-        ExpiryReminder.save(context, call.getString("name") ?: "", (call.getDouble("expireAt") ?: 0.0).toLong(), call.getBoolean("enabled", false) ?: false)
+        ExpiryReminder.save(context, call.getString("name") ?: "", (call.getDouble("expireAt") ?: 0.0).toLong(), call.getBoolean("enabled", false) ?: false, call.getInt("days") ?: 3)
         ExpiryReminder.schedule(context)
         call.resolve()
     }

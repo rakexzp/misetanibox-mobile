@@ -14,19 +14,20 @@ import java.util.Calendar
 /** Напоминания «подписка скоро истечёт» за 3/2/1 день до срока, раз в день (заголовок notification-subs-expire). */
 object ExpiryReminder {
     private const val CHANNEL = "misetanibox_sub"
-    private const val K_NAME = "rem_name"; private const val K_EXPIRE = "rem_expire"; private const val K_ON = "rem_on"
+    private const val K_NAME = "rem_name"; private const val K_EXPIRE = "rem_expire"; private const val K_ON = "rem_on"; private const val K_DAYS = "rem_days"
 
-    fun save(ctx: Context, name: String, expireAt: Long, enabled: Boolean) {
-        VpnPrefs.prefs(ctx).edit().putString(K_NAME, name).putLong(K_EXPIRE, expireAt).putBoolean(K_ON, enabled).apply()
+    fun save(ctx: Context, name: String, expireAt: Long, enabled: Boolean, days: Int = 3) {
+        VpnPrefs.prefs(ctx).edit().putString(K_NAME, name).putLong(K_EXPIRE, expireAt).putBoolean(K_ON, enabled).putInt(K_DAYS, days.coerceIn(1, 30)).apply()
     }
 
     fun schedule(ctx: Context) {
         val p = VpnPrefs.prefs(ctx); val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val expire = p.getLong(K_EXPIRE, 0L); val on = p.getBoolean(K_ON, false)
-        for (d in 1..3) am.cancel(pending(ctx, d))
+        val days = p.getInt(K_DAYS, 3)
+        for (d in 1..30) am.cancel(pending(ctx, d))
         if (!on || expire <= 0) return
         val now = System.currentTimeMillis()
-        for (d in 3 downTo 1) {
+        for (d in days downTo 1) {
             val c = Calendar.getInstance().apply { timeInMillis = (expire - d * 86400L) * 1000L; set(Calendar.HOUR_OF_DAY, 11); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0) }
             if (c.timeInMillis <= now) continue
             am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, c.timeInMillis, pending(ctx, d))
