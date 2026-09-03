@@ -672,7 +672,7 @@ function navBack(){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'v0.21.4';
+const BUILD = 'v0.21.5';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
@@ -808,7 +808,7 @@ function blinkFace(){
   el.textContent = connected ? '^_^' : 'u_u';
   setTimeout(()=>{ el.textContent=faceBase; },150);
 }
-setInterval(blinkFace,5200);
+
 
 let connected=false, sessStart=0, sessTimer=null;
 const delays={}; // имя ноды -> пинг
@@ -828,10 +828,7 @@ function setUiConnected(on){
   const sv=document.getElementById('status-val');
   if(on){
     big.textContent='ОТКЛЮЧИТЬ'; sv.textContent='● ПОДКЛЮЧЕНО'; setHomeState('on');
-    if(!sessTimer){ sessStart=Date.now(); sessTimer=setInterval(()=>{
-      const s=Math.floor((Date.now()-sessStart)/1000);
-      document.getElementById('sess-time').textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
-    },1000); }
+    if(!sessTimer){ sessStart=Date.now(); sessTimer=setInterval(tickSession,1000); tickSession(); }
     startTraffic();
     document.getElementById('servers-sub').textContent='ЗАГРУЗКА';
     setServersNote('Ядро скачивает подписку…');
@@ -1460,6 +1457,12 @@ async function saveSubModal(){
 
 // ---------- трафик (реальный, из API ядра) ----------
 function fmtBytes(b){ b=Math.max(0,Number(b)||0); if(b<1024) return Math.round(b)+' Б'; const u=['КБ','МБ','ГБ','ТБ']; let i=-1; do{ b/=1024; i++; }while(b>=1024&&i<u.length-1); return b.toFixed(b<10?1:0)+' '+u[i]; }
+// таймеры сессии/трафика живут только пока экран виден — в фоне WebView не должен будить процесс
+function tickSession(){ if(document.hidden) return; const s=Math.floor((Date.now()-sessStart)/1000); const el=document.getElementById('sess-time'); if(el) el.textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0'); }
+document.addEventListener('visibilitychange', ()=>{
+  if(document.hidden){ if(trafTimer){ clearInterval(trafTimer); trafTimer=null; prevTrafT=0; } if(sessTimer){ clearInterval(sessTimer); sessTimer=null; } }
+  else if(connected){ if(!sessTimer){ sessTimer=setInterval(tickSession,1000); tickSession(); } startTraffic(); loadProxies(); }
+});
 let trafTimer=null, totalUp=0, totalDown=0;
 function startTraffic(){
   if(trafTimer) return;

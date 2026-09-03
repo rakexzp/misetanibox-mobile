@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/metacubex/mihomo/component/dialer"
+	"github.com/metacubex/mihomo/component/process"
 	C "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/hub"
 	"github.com/metacubex/mihomo/hub/executor"
@@ -112,6 +113,9 @@ func Start(homeDir, configYAML string, fd int) (ret string) {
 		MTU:          9000,
 		UDPTimeout:   300,
 	}
+	// поиск процесса-владельца соединения на Android = парсинг /proc на каждый коннект впустую (батарея);
+	// роутинг по приложениям делает VpnService
+	cfg.General.FindProcessMode = process.FindProcessOff
 	// redir/tproxy-листенеры на Android без рута не поднимаются («operation not permitted»)
 	cfg.General.RedirPort = 0
 	cfg.General.TProxyPort = 0
