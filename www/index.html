@@ -77,12 +77,12 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 .toggle.on::after{left:23px;background:var(--bg)}
 
 /* НИЖНЯЯ НАВИГАЦИЯ */
-.nav{display:flex;border-top:1px solid var(--ln);flex:none;background:var(--bg)}
+.nav{display:flex;border-top:none;flex:none;background:linear-gradient(to top,rgba(10,10,12,.9) 40%,rgba(10,10,12,0));padding-top:8px}
 .mode-seg{display:flex;gap:4px;margin:6px 24px 8px;padding:4px;border-radius:12px;background:var(--ln)}
 .mode-seg button{flex:1;min-height:40px;border:none;border-radius:9px;background:transparent;color:var(--dim);font-family:inherit;font-size:13px;font-weight:600}
 .mode-seg button.active{background:var(--fg);color:var(--bg)}
-.nav button{flex:1;padding:12px 0 calc(12px + env(safe-area-inset-bottom));background:none;border:none;color:var(--mut);font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.14em;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px}
-.nav button .g{font-size:15px}
+.nav button{flex:1;padding:10px 0 calc(12px + env(safe-area-inset-bottom));background:none;border:none;color:rgba(255,255,255,.38);font-family:'JetBrains Mono',monospace;font-size:0;letter-spacing:.14em;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px}
+.nav button .g{font-size:22px}
 .nav button.active{color:var(--fg)}
 .hidden{display:none}
 
@@ -142,9 +142,9 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 .cover-brand .brand-face.online{color:#fff}
 .cover-meta{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:rgba(255,255,255,.7);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cover-actions{display:flex;gap:6px;flex:none}
-.cover-icon{width:44px;height:44px;border-radius:13px;border:none;background:rgba(255,255,255,.12);color:#fff;display:flex;align-items:center;justify-content:center}
+.cover-icon{width:40px;height:40px;border:none;background:none;color:rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;padding:0}
 .cover-icon:active{transform:scale(.95)}
-.cover-icon svg{width:19px;height:19px}
+.cover-icon svg{width:22px;height:22px}
 .cover-spacer{flex:1}
 .cover-hero{display:flex;flex-direction:column;gap:2px;align-items:flex-start}
 .hero-line{display:block;animation:hero-in .55s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i)*90ms)}
@@ -232,8 +232,9 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 .mode-seg button{color:rgba(255,255,255,.85)}
 .mode-seg button.active{background:#fff;color:#111;box-shadow:0 3px 8px rgba(0,0,0,.2)}
 .back-row .bk{color:rgba(255,255,255,.5)}
-.nav{border-top:1px solid rgba(255,255,255,.08);background:rgba(15,16,19,.92)}
-.nav button{color:rgba(255,255,255,.4);font-family:var(--mono)}
+.nav{border-top:none;background:linear-gradient(to top,rgba(10,10,12,.92) 45%,rgba(10,10,12,0))}
+.nav button{color:rgba(255,255,255,.4)}
+.nav button.active .g{transform:translateY(-1px)}
 .nav button.active{color:#fff}
 .sub-modal{background:rgba(0,0,0,.55)}
 .sub-modal-card{border:none;border-radius:24px 24px 0 0;background:#141416;box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 -16px 50px rgba(0,0,0,.4);padding:14px 22px calc(22px + env(safe-area-inset-bottom))}
