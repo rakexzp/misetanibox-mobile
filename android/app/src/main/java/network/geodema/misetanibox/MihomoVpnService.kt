@@ -94,7 +94,8 @@ class MihomoVpnService : VpnService() {
         try {
             // Классика: сперва тянем конфиг подписки (со всеми селекторами автора). Если не
             // удалось — не поднимаем TUN, иначе интернет пропадёт при мёртвом туннеле.
-            var fetched = Subscription.fetchAny(subUrl, hwid, userAgent, fallbacks.toList())
+            // панели даём 5 с на всё (с запасными адресами), дальше молча поднимаемся по копии
+            var fetched = Subscription.fetchAny(subUrl, hwid, userAgent, fallbacks.toList(), 0, 5000L)
             if (fetched.status in 200..299 && fetched.body.isNotBlank()) {
                 Subscription.saveCache(this, subUrl, fetched.body)
             } else {
@@ -105,7 +106,6 @@ class MihomoVpnService : VpnService() {
                     broadcast("error", "не удалось загрузить конфиг подписки ($reason) — проверьте ссылку и интернет")
                     return
                 }
-                broadcast("info", "панель недоступна — подключаюсь по сохранённой копии подписки")
                 fetched = Subscription.Fetched(200, cached, null)
             }
             // Подписка может прийти YAML-ом mihomo, JSON-ом Xray или списком ссылок:

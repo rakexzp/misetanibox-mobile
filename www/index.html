@@ -675,7 +675,7 @@ function navBack(){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'v0.21.10';
+const BUILD = 'v0.21.11';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
@@ -1507,7 +1507,7 @@ async function fetchSubMeta(sub){
   if(!sub||!sub.url||!Vpn||!Vpn.fetchSub) return;
   try{ const r=await Vpn.fetchSub({url:sub.url, hwid:getHwid(), userAgent:getUserAgent(), fallbacks:subFallbacks(sub)});
     if(!r||r.status<200||r.status>=300) return;
-    if(r.cached){ toast('Панель недоступна — офлайн-копия подписки'); return; }
+    if(r.cached) return;
     const l=subs(); const a=l.find(x=>x.id===sub.id); if(!a) return;
     a.title=r.title||''; a.logo=r.logo||''; a.webPage=r.webPage||''; a.supportUrl=r.supportUrl||''; a.announce=r.announce||'';
     a.userinfo=parseUserinfo(r.userinfo||''); a.metaAt=Date.now();

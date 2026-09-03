@@ -86,25 +86,30 @@ object Subscription {
     }
 
     /** Основная ссылка, потом запасные по очереди; первая с 2xx выигрывает. */
-    fun fetchAny(url: String, hwid: String, userAgent: String, fallbacks: List<String>, proxyPort: Int = 0): Fetched {
-        var last = fetch(url, hwid, userAgent, proxyPort)
+    /** Общий дедлайн на все попытки (основная + запасные): для старта туннеля 5 с, потом — копия. */
+    fun fetchAny(url: String, hwid: String, userAgent: String, fallbacks: List<String>, proxyPort: Int = 0, deadlineMs: Long = 0L): Fetched {
+        val t0 = System.currentTimeMillis()
+        fun left(): Int = if (deadlineMs <= 0) 0 else (deadlineMs - (System.currentTimeMillis() - t0)).toInt()
+        if (deadlineMs > 0 && left() <= 0) return Fetched(0, "", "таймаут")
+        var last = fetch(url, hwid, userAgent, proxyPort, left())
         if (last.status in 200..299 && last.body.isNotBlank()) return last
         val seen = HashSet<String>(); seen.add(url)
         for (fb in fallbacks) {
             val u = resolveFallbackUrl(url, fb.trim()); if (u.isEmpty() || !seen.add(u)) continue
-            val r = fetch(u, hwid, userAgent, proxyPort)
+            if (deadlineMs > 0 && left() <= 300) break
+            val r = fetch(u, hwid, userAgent, proxyPort, left())
             if (r.status in 200..299 && r.body.isNotBlank()) return r
             last = r
         }
         return last
     }
 
-    fun fetch(url: String, hwid: String, userAgent: String, proxyPort: Int = 0): Fetched {
+    fun fetch(url: String, hwid: String, userAgent: String, proxyPort: Int = 0, timeoutMs: Int = 0): Fetched {
         return try {
             val u = java.net.URL(url)
             val conn = (if (proxyPort > 0) u.openConnection(java.net.Proxy(java.net.Proxy.Type.HTTP, java.net.InetSocketAddress("127.0.0.1", proxyPort))) else u.openConnection()) as java.net.HttpURLConnection
-            conn.connectTimeout = CONNECT_TIMEOUT_MS
-            conn.readTimeout = READ_TIMEOUT_MS
+            conn.connectTimeout = if (timeoutMs > 0) minOf(timeoutMs, CONNECT_TIMEOUT_MS) else CONNECT_TIMEOUT_MS
+            conn.readTimeout = if (timeoutMs > 0) minOf(timeoutMs, READ_TIMEOUT_MS) else READ_TIMEOUT_MS
             conn.instanceFollowRedirects = true
             conn.setRequestProperty("User-Agent", userAgentOr(userAgent))
             if (hwid.isNotEmpty()) {
