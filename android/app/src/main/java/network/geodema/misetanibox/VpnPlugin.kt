@@ -188,6 +188,26 @@ class VpnPlugin : Plugin() {
         } catch (_: Exception) { 0 }
     }
 
+    // тактильный отклик: heavy = защёлкнулась панель, tick = закрылась
+    @PluginMethod
+    fun haptic(call: PluginCall) {
+        try {
+            val kind = call.getString("kind") ?: "tick"
+            val vib = if (Build.VERSION.SDK_INT >= 31) {
+                (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager).defaultVibrator
+            } else {
+                @Suppress("DEPRECATION") context.getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator
+            }
+            if (Build.VERSION.SDK_INT >= 29) {
+                val eff = if (kind == "heavy") android.os.VibrationEffect.EFFECT_HEAVY_CLICK else android.os.VibrationEffect.EFFECT_TICK
+                vib.vibrate(android.os.VibrationEffect.createPredefined(eff))
+            } else if (Build.VERSION.SDK_INT >= 26) {
+                vib.vibrate(android.os.VibrationEffect.createOneShot(if (kind == "heavy") 30 else 10, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+            }
+        } catch (_: Exception) {}
+        call.resolve()
+    }
+
     @PluginMethod
     fun setAutostart(call: PluginCall) {
         VpnPrefs.setAutostart(context, call.getBoolean("on", false) ?: false)
