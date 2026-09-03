@@ -1533,14 +1533,14 @@ function subExpiryText(u){ if(!u||!u.expire) return ''; const d=new Date(u.expir
 function openExternal(url){ if(!url) return; if(Vpn&&Vpn.openUrl) Vpn.openUrl({url}).catch(()=>{}); else window.open(url,'_blank'); }
 fetchSubMeta(activeSub());
 // обновление из приложения: манифест на зеркале → скачать APK через браузер
-const UPDATE_URL='https://files.geodema.network/misetani/android-update.json';
+const UPDATE_URLS=['https://files.misetani.app/misetani/android-update.json','https://files.geodema.network/misetani/android-update.json'];
 let updInfo=null;
 function verNum(v){ return String(v||'').replace(/^v/,'').split('.').map(n=>parseInt(n,10)||0); }
 function verGt(a,b){ const x=verNum(a), y=verNum(b); for(let i=0;i<3;i++){ if((x[i]||0)!==(y[i]||0)) return (x[i]||0)>(y[i]||0); } return false; }
 async function checkUpdate(){
   const el=document.getElementById('upd-sub');
   if(!Vpn||!Vpn.httpGet){ if(el) el.textContent=BUILD.toUpperCase()+' · ТОЛЬКО В ПРИЛОЖЕНИИ'; return; }
-  try{ const r=await Vpn.httpGet({url:UPDATE_URL+'?t='+Date.now()}); const j=(r&&r.status===200)?JSON.parse(r.body):null;
+  try{ let r=null; for(const u of UPDATE_URLS){ r=await Vpn.httpGet({url:u+'?t='+Date.now()}); if(r&&r.status===200) break; } const j=(r&&r.status===200)?JSON.parse(r.body):null;
     if(!j){ updInfo=null; if(el) el.textContent=BUILD.toUpperCase()+' · НЕ УДАЛОСЬ ПРОВЕРИТЬ'; }
     else if(j.tag_name&&verGt(j.tag_name,BUILD)){ updInfo=j; if(el) el.textContent='ДОСТУПНА '+String(j.tag_name).toUpperCase()+' · ТАП — СКАЧАТЬ'; toast('Доступно обновление '+j.tag_name); }
     else { updInfo=null; if(el) el.textContent=BUILD.toUpperCase()+' · АКТУАЛЬНАЯ'; }
