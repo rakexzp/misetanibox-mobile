@@ -670,7 +670,7 @@ function navBack(){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'v0.20.7';
+const BUILD = 'v0.20.8';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
@@ -746,7 +746,9 @@ async function refreshServerList(){
   const sub=getSubUrl(); if(!sub||!Vpn||!Vpn.fetchSub) return;
   const id=activeSubId();
   try{ const r=await Vpn.fetchSub({url:sub, hwid:getHwid(), userAgent:getUserAgent()});
-    if(activeSubId()!==id || !r || r.status<200 || r.status>=300 || !r.body) return;
+    if(activeSubId()!==id) return;
+    if(!r || r.status<200 || r.status>=300 || !r.body){ const why=r&&r.status?('HTTP '+r.status):(r&&r.error)||'нет ответа'; localStorage.setItem(ck('mise_subErr'), why); renderServerSheet(); toast('Подписка недоступна: '+why); return; }
+    localStorage.removeItem(ck('mise_subErr'));
     const sheet=safeJson(r.sheet||'');
     if(sheet&&Array.isArray(sheet.members)&&sheet.members.length){ localStorage.setItem(ck('mise_mainServers'), JSON.stringify({all:sheet.members, now:'', auto:sheet.auto||''})); }
     else { const names=(r.names&&r.names.length)?r.names:parseSubNames(r.body); if(names.length) localStorage.setItem(ck('mise_lastServers'), JSON.stringify({all:names, now:getPreferred()})); }
@@ -1102,7 +1104,7 @@ function renderServerSheet(){
     const c=safeJson(localStorage.getItem(ck('mise_mainServers')))||safeJson(localStorage.getItem(ck('mise_lastServers'))); const names=(c&&c.all)||[]; const pref=getPreferred(); const autoName=c&&c.auto||'';
     cnt.textContent=names.length?names.length+' серверов':'—';
     list.innerHTML=names.length?names.map(n=>n===autoName?`<button class="sheet-item${pref===n?' active':''}" onclick="preSelect('${q(n)}');renderServerSheet()">${ZAP}<span class="sheet-name">Авто</span><span class="sheet-tag">быстрейший</span></button>`:`<button class="sheet-item${pref===n?' active':''}" onclick="preSelect('${q(n)}');renderServerSheet()"><span class="sheet-dot"></span>${flagImg(n,'sheet-flag')}<span class="sheet-name">${esc(cleanName(n))}</span><span class="sheet-ping">${sheetPing(n)}</span></button>`).join('')
-      :'<div class="sheet-empty">'+(getSubUrl()?'Загружаю список серверов…':'Нет серверов. Добавьте подписку.')+'</div>';
+      :'<div class="sheet-empty">'+(getSubUrl()?(localStorage.getItem(ck('mise_subErr'))?'Подписка недоступна ('+esc(localStorage.getItem(ck('mise_subErr')))+'). Проверь ссылку или панель.':'Загружаю список серверов…'):'Нет серверов. Добавьте подписку.')+'</div>';
   }
 }
 async function sheetPick(group, name){ await selectNode(group, name); closeServerSheet(); }
