@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/logo.png" width="160" alt="Misetanibox"></p>
+
 # Misetanibox Mobile
 
 Android-клиент **Misetanibox** на ядре [mihomo](https://github.com/MetaCubeX/mihomo) (Clash Meta).
