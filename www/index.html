@@ -670,7 +670,7 @@ function navBack(){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'v0.20.2';
+const BUILD = 'v0.20.3';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
@@ -727,13 +727,36 @@ function setActiveSub(id){
   const s=subs().find(x=>x.id===id);
   if(s) localStorage.setItem('mise_subUrl', s.url); // синхрон для нативной части
   // список серверов/формат относятся к прошлой подписке
-  localStorage.removeItem('mise_lastServers'); localStorage.removeItem('mise_preferred'); localStorage.removeItem('mise_subFormat');
+  localStorage.removeItem(ck('mise_lastServers')); localStorage.removeItem('mise_preferred'); localStorage.removeItem('mise_subFormat');
 }
+function ck(base){ return base+':'+(activeSubId()||'_'); }
 function getSubUrl(){ const s=activeSub(); return s ? s.url : (localStorage.getItem('mise_subUrl')||''); }
 function switchSub(id){
   if(id===activeSubId()) return;
-  setActiveSub(id); renderSubs(); fetchSubMeta(subs().find(s=>s.id===id));
-  toast(connected ? 'Переподключитесь, чтобы применить' : 'Активная: '+(subs().find(s=>s.id===id)||{}).name);
+  setActiveSub(id); renderSubs();
+  const sub=subs().find(s=>s.id===id);
+  _proxies=null; _mainSel=null; _providerNodes=null; delays={};
+  updateHomeServer(null); renderServerSheet(); updateCoverMeta();
+  fetchSubMeta(sub); refreshServerList();
+  if(connected){ toast('Переподключаюсь к '+((sub&&(sub.title||sub.name))||'подписке')); reconnect(); }
+  else toast('Активная: '+((sub&&(sub.title||sub.name))||''));
+}
+// список серверов новой подписки — сразу, не дожидаясь подключения
+async function refreshServerList(){
+  const sub=getSubUrl(); if(!sub||!Vpn||!Vpn.fetchSub) return;
+  const id=activeSubId();
+  try{ const r=await Vpn.fetchSub({url:sub, hwid:getHwid(), userAgent:getUserAgent()});
+    if(activeSubId()!==id || !r || r.status<200 || r.status>=300 || !r.body) return;
+    const names=(r.names&&r.names.length)?r.names:parseSubNames(r.body);
+    if(names.length) localStorage.setItem(ck('mise_lastServers'), JSON.stringify({all:names, now:getPreferred()}));
+    if(r.format) localStorage.setItem('mise_subFormat', r.formatLabel||r.format);
+    renderServerSheet(); renderSubs();
+  }catch{}
+}
+async function reconnect(){
+  try{ await Vpn.stop(); }catch{}
+  const t0=Date.now();
+  const t=setInterval(()=>{ if(!connected){ clearInterval(t); setTimeout(toggleConnect,400); } else if(Date.now()-t0>8000){ clearInterval(t); toast('Не удалось переподключиться — нажми «Подключить»'); } },300);
 }
 function delSub(id, ev){
   if(ev&&ev.stopPropagation) ev.stopPropagation();
@@ -759,7 +782,7 @@ function setUserAgent(ua){
   const v=(ua||'').trim();
   localStorage.setItem('mise_ua', v || UA_DEFAULT);
   // формат подписки мог смениться вместе с UA — кэш серверов больше не про неё
-  localStorage.removeItem('mise_lastServers');
+  localStorage.removeItem(ck('mise_lastServers'));
   applyUaSub();
 }
 function applyUaSub(){ const el=document.getElementById('ua-sub'); if(el) el.textContent=getUserAgent().toUpperCase(); }
@@ -890,7 +913,7 @@ function isSelector(p){ return p && String(p.type||'').toLowerCase()==='selector
 // порядок групп берём из GLOBAL.all (мihomo хранит там порядок конфига), GLOBAL прячем
 function orderedGroups(P){
   // прячем GLOBAL и группы с hidden:true (mihomo помечает служебные — как во FlClash)
-  const names=Object.keys(P).filter(n=>isGroup(P[n]) && n!=='GLOBAL' && !P[n].hidden);
+  const names=Object.keys(P).filter(n=>isGroup(P[n]) && n!=='GLOBAL' && !P[n].hidden && isSelector(P[n]));
   const gl=(P['GLOBAL']&&Array.isArray(P['GLOBAL'].all))?P['GLOBAL'].all.filter(n=>names.includes(n)):[];
   const order=gl.slice();
   for(const n of names) if(!order.includes(n)) order.push(n);
@@ -924,9 +947,10 @@ async function loadProxies(){
 // оффлайн-кэш: состав главного селектора для листа + реальные узлы для цепочек
 function cacheServerLists(){
   if(!_proxies) return; const main=sheetMain(); if(!main) return; const g=_proxies[main]; if(!g||!Array.isArray(g.all)) return;
-  localStorage.setItem('mise_mainServers', JSON.stringify({all:g.all.filter(n=>{ const p=_proxies[n]||{}; return !NO_EXIT.test(String(p.type||'')); }), now:g.now||''}));
+  const autoG=g.all.find(n=>String((_proxies[n]||{}).type||'').toLowerCase()==='urltest')||'';
+  localStorage.setItem(ck('mise_mainServers'), JSON.stringify({all:g.all.filter(n=>{ const p=_proxies[n]||{}; return !NO_EXIT.test(String(p.type||'')); }), now:g.now||'', auto:autoG}));
   const nodes=Object.values(_proxies).filter(p=>p&&p.name&&!Array.isArray(p.all)&&!NO_EXIT.test(String(p.type||''))&&!(_providerNodes&&_providerNodes.has(p.name))).map(p=>p.name);
-  localStorage.setItem('mise_nodeNames', JSON.stringify(nodes));
+  localStorage.setItem(ck('mise_nodeNames'), JSON.stringify(nodes));
 }
 function renderProxies(){
   const P=_proxies; if(!P) return;
@@ -996,7 +1020,7 @@ function parseSubNames(text){ const v=parseV2rayNames(text); return v.length?v:p
 function getPreferred(){ return localStorage.getItem('mise_preferred'); }
 function preSelect(name){
   localStorage.setItem('mise_preferred', name); toast('Сервер по умолчанию: '+cleanName(name));
-  const c=safeJson(localStorage.getItem('mise_lastServers')); if(c&&c.all) renderPreviewServers(c.all);
+  const c=safeJson(localStorage.getItem(ck('mise_lastServers'))); if(c&&c.all) renderPreviewServers(c.all);
 }
 function renderPreviewServers(names){
   const pref=getPreferred();
@@ -1027,7 +1051,7 @@ async function previewServers(){
   const names=(r.names && r.names.length) ? r.names : parseSubNames(r.body);
   dbg('превью: '+names.length+' серверов из подписки');
   if(!names.length){ subEl.textContent='—'; list.innerHTML='<div class="list-note">Не удалось разобрать список. '+esc(r.error||'Формат подписки не распознан.')+'</div>'; return; }
-  localStorage.setItem('mise_lastServers', JSON.stringify({all:names, now:getPreferred()}));
+  localStorage.setItem(ck('mise_lastServers'), JSON.stringify({all:names, now:getPreferred()}));
   renderSubs();
   renderPreviewServers(names); renderServerSheet();
 }
@@ -1053,7 +1077,7 @@ async function waitForServers(){
 // ---------- лист серверов (как в Lite): Авто → страны главного селектора ----------
 const NO_EXIT=/^(Direct|Reject|RejectDrop|Pass|Compatible|Dns)$/i;
 function sheetMain(){ if(!_proxies) return null; const order=orderedGroups(_proxies); return pickMainGroup(_proxies, order); }
-function openServerSheet(){ const el=document.getElementById('server-sheet'); if(!el) return; el.classList.remove('hidden'); renderServerSheet(); if(connected) loadProxies(); else if(!safeJson(localStorage.getItem('mise_lastServers'))) previewServers().then(renderServerSheet); }
+function openServerSheet(){ const el=document.getElementById('server-sheet'); if(!el) return; el.classList.remove('hidden'); renderServerSheet(); if(connected) loadProxies(); else if(!safeJson(localStorage.getItem(ck('mise_lastServers')))) previewServers().then(renderServerSheet); }
 function closeServerSheet(){ const el=document.getElementById('server-sheet'); if(el) el.classList.add('hidden'); }
 function sheetPing(n){ const d=delays[n]; if(d===undefined) return ''; return d>0 ? d+' мс' : 'таймаут'; }
 function renderServerSheet(){
@@ -1064,7 +1088,7 @@ function renderServerSheet(){
     const main=sheetMain(); const g=main?_proxies[main]:null;
     if(!g){ cnt.textContent='—'; list.innerHTML='<div class="sheet-empty">Ядро ещё поднимается…</div>'; return; }
     const all=g.all||[]; const now=g.now||'';
-    const auto=all.find(n=>{ const t=String((_proxies[n]||{}).type||'').toLowerCase(); return t==='urltest'||t==='fallback'; })||'';
+    const auto=all.find(n=>String((_proxies[n]||{}).type||'').toLowerCase()==='urltest')||'';
     const items=all.filter(n=>{ const p=_proxies[n]||{}; const t=String(p.type||''); return !NO_EXIT.test(t) && t.toLowerCase()!=='selector' && n!==auto; });
     cnt.textContent=items.length+' серверов';
     let html='';
@@ -1072,9 +1096,9 @@ function renderServerSheet(){
     html+=items.map(n=>`<button class="sheet-item${now===n?' active':''}" onclick="sheetPick('${q(main)}','${q(n)}')"><span class="sheet-dot"></span>${flagImg(n,'sheet-flag')}<span class="sheet-name">${esc(cleanName(n))}</span><span class="sheet-ping">${sheetPing(n)}</span></button>`).join('');
     list.innerHTML=html||'<div class="sheet-empty">Нет серверов. Добавьте подписку.</div>';
   }else{
-    const c=safeJson(localStorage.getItem('mise_mainServers'))||safeJson(localStorage.getItem('mise_lastServers')); const names=(c&&c.all)||[]; const pref=getPreferred();
+    const c=safeJson(localStorage.getItem(ck('mise_mainServers')))||safeJson(localStorage.getItem(ck('mise_lastServers'))); const names=(c&&c.all)||[]; const pref=getPreferred(); const autoName=c&&c.auto||'';
     cnt.textContent=names.length?names.length+' серверов':'—';
-    list.innerHTML=names.length?names.map(n=>`<button class="sheet-item${pref===n?' active':''}" onclick="preSelect('${q(n)}');renderServerSheet()"><span class="sheet-dot"></span>${flagImg(n,'sheet-flag')}<span class="sheet-name">${esc(cleanName(n))}</span><span class="sheet-ping">${sheetPing(n)}</span></button>`).join('')
+    list.innerHTML=names.length?names.map(n=>n===autoName?`<button class="sheet-item${pref===n?' active':''}" onclick="preSelect('${q(n)}');renderServerSheet()">${ZAP}<span class="sheet-name">Авто</span><span class="sheet-tag">быстрейший</span></button>`:`<button class="sheet-item${pref===n?' active':''}" onclick="preSelect('${q(n)}');renderServerSheet()"><span class="sheet-dot"></span>${flagImg(n,'sheet-flag')}<span class="sheet-name">${esc(cleanName(n))}</span><span class="sheet-ping">${sheetPing(n)}</span></button>`).join('')
       :'<div class="sheet-empty">'+(getSubUrl()?'Загружаю список серверов…':'Нет серверов. Добавьте подписку.')+'</div>';
   }
 }
@@ -1228,8 +1252,8 @@ function chainNodeSource(){
   if(connected && _proxies){
     return Object.values(_proxies).filter(p=>p&&p.name&&!Array.isArray(p.all)&&!NO_EXIT.test(String(p.type||''))&&!(_providerNodes&&_providerNodes.has(p.name))).map(p=>p.name);
   }
-  const cached=safeJson(localStorage.getItem('mise_nodeNames')); if(Array.isArray(cached)&&cached.length) return cached;
-  const c = safeJson(localStorage.getItem('mise_lastServers'));
+  const cached=safeJson(localStorage.getItem(ck('mise_nodeNames'))); if(Array.isArray(cached)&&cached.length) return cached;
+  const c = safeJson(localStorage.getItem(ck('mise_lastServers')));
   return (c && Array.isArray(c.all)) ? c.all : [];
 }
 function renderChainRoute(){
