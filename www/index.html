@@ -82,7 +82,8 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 .mode-seg button{flex:1;min-height:40px;border:none;border-radius:9px;background:transparent;color:var(--dim);font-family:inherit;font-size:13px;font-weight:600}
 .mode-seg button.active{background:var(--fg);color:var(--bg)}
 .nav button{flex:1;padding:10px 0 calc(12px + env(safe-area-inset-bottom));background:none;border:none;color:rgba(255,255,255,.38);font-family:'JetBrains Mono',monospace;font-size:0;letter-spacing:.14em;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px}
-.nav button .g{font-size:22px}
+.nav button .g{display:flex;align-items:center;justify-content:center}
+.nav button .g svg{width:24px;height:24px}
 .nav button.active{color:var(--fg)}
 .hidden{display:none}
 
@@ -482,10 +483,10 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
   </div>
 
   <nav class="nav">
-    <button class="active" data-tab="home" onclick="go('home')"><span class="g">◇</span>ГЛАВНАЯ</button>
-    <button data-tab="rules" onclick="go('rules')"><span class="g">§</span>ПРАВИЛА</button>
-    <button data-tab="subs" onclick="go('subs')"><span class="g">⊞</span>ПОДПИСКИ</button>
-    <button data-tab="settings" onclick="go('settings')"><span class="g">⚙</span>НАСТРОЙКИ</button>
+    <button class="active" data-tab="home" onclick="go('home')"><span class="g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 4l9 6.5V20a1 1 0 0 1-1 1h-4v-6h-4v6H4a1 1 0 0 1-1-1z"/></svg></span>ГЛАВНАЯ</button>
+    <button data-tab="rules" onclick="go('rules')"><span class="g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="m15 15 6 6"/><path d="M4 4l5 5"/></svg></span>ПРАВИЛА</button>
+    <button data-tab="subs" onclick="go('subs')"><span class="g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 0 1 0 10h-2"/><path d="M8 12h8"/></svg></span>ПОДПИСКИ</button>
+    <button data-tab="settings" onclick="go('settings')"><span class="g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>НАСТРОЙКИ</button>
   </nav>
 </div>
 
