@@ -672,7 +672,7 @@ function navBack(){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'v0.21.2';
+const BUILD = 'v0.21.3';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
@@ -1059,6 +1059,7 @@ async function previewServers(){
   dbg('превью: '+names.length+' серверов из подписки');
   if(!names.length){ subEl.textContent='—'; list.innerHTML='<div class="list-note">Не удалось разобрать список. '+esc(r.error||'Формат подписки не распознан.')+'</div>'; return; }
   localStorage.setItem(ck('mise_lastServers'), JSON.stringify({all:names, now:getPreferred()}));
+  { const sh=safeJson(r.sheet||''); if(sh&&Array.isArray(sh.members)&&sh.members.length) localStorage.setItem(ck('mise_mainServers'), JSON.stringify({all:sh.members, now:'', auto:sh.auto||'', groups:sh.groups||{}})); }
   renderSubs();
   renderPreviewServers(names); renderServerSheet();
 }
@@ -1444,7 +1445,7 @@ async function saveSubModal(){
   const dup=list.find(s=>s.url===url);
   if(dup){ setActiveSub(dup.id); closeSubModal(); renderSubs(); toast('Уже добавлена — сделал активной'); go('servers'); return; }
   const item={id:'s'+Date.now(), name:subName(url), url};
-  list.push(item); saveSubs(list); setActiveSub(item.id); fetchSubMeta(item);
+  list.push(item); saveSubs(list); setActiveSub(item.id); fetchSubMeta(item); refreshServerList();
   closeSubModal(); renderSubs(); toast('Подписка добавлена'); go('servers');
 }
 
