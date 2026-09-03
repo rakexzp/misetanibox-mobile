@@ -670,7 +670,7 @@ function navBack(){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'v0.20.5';
+const BUILD = 'v0.20.6';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
@@ -735,7 +735,7 @@ function switchSub(id){
   if(id===activeSubId()) return;
   setActiveSub(id); renderSubs();
   const sub=subs().find(s=>s.id===id);
-  _proxies=null; _mainSel=null; _providerNodes=null; delays={};
+  _proxies=null; _mainSel=null; _providerNodes=null; for(const k of Object.keys(delays)) delete delays[k];
   updateHomeServer(null); renderServerSheet(); updateCoverMeta();
   fetchSubMeta(sub); refreshServerList();
   if(connected){ suppressProxies=true; toast('Переподключаюсь к '+((sub&&(sub.title||sub.name))||'подписке')); reconnect(); }
