@@ -331,7 +331,7 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 .view.pop-in::after{animation:dim-off .38s cubic-bezier(.32,.72,0,1) both}
 .view.anim{transition:transform 400ms cubic-bezier(.32,.72,0,1),opacity 400ms cubic-bezier(.32,.72,0,1)}
 /* edge-swipe назад: верхний экран тянется за пальцем, нижний выезжает из -30% и светлеет (--dim) */
-.view.drag-over{z-index:4;box-shadow:-8px 0 30px rgba(0,0,0,.35)}
+.view.drag-over{z-index:4}
 .view.drag-under{z-index:2}
 .view.drag-under::after{content:"";position:absolute;inset:0;background:#000;opacity:var(--dim,.45);pointer-events:none;z-index:9}
 .view.drag-under.anim::after{transition:opacity 400ms cubic-bezier(.32,.72,0,1)}
@@ -339,8 +339,8 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 
 /* выдвижные панели: «Правила» справа, «Подписки» слева — тянутся за пальцем, пружинят, вибрируют при защёлкивании */
 #view-rules,#view-subs{position:absolute;inset:0;z-index:6;will-change:transform;background:rgba(15,16,19,.9);padding-top:calc(10px + var(--sat,0px));overflow-y:auto}
-#view-rules{transform:translateX(100%);box-shadow:-1px 0 0 rgba(255,255,255,.08),-40px 0 80px rgba(0,0,0,.55)}
-#view-subs{transform:translateX(-100%);box-shadow:1px 0 0 rgba(255,255,255,.08),40px 0 80px rgba(0,0,0,.55)}
+#view-rules{transform:translateX(100%)}
+#view-subs{transform:translateX(-100%)}
 #drawer-dim{position:absolute;inset:0;z-index:5;background:#000;opacity:0;pointer-events:none}
 #view-home{will-change:transform;transform-origin:50% 50%}
 #view-rules.anim,#view-subs.anim,#view-home.anim{transition:transform 480ms cubic-bezier(.22,1.28,.34,1)}
@@ -1494,7 +1494,19 @@ function renderSubs(){
     const ua=`<span class="sub-ua${s.ua?' set':''}" onclick="openUaModal('${q(s.id)}',event)">UA · ${esc(uaLabel(getUserAgent(s)))}</span>`;
     const logo=s.logo?`<img class="sub-logo" src="${esc(s.logo)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'sub-logo dot'}))">`:`<span class="sub-logo dot${on?' on':''}"></span>`;
     const busy=subRequests.has(s.id+'|'+getUserAgent(s)+'|'+subGeneration);
-    const refresh=`<button type="button" class="sub-refresh${busy?' busy':''}" aria-label="${busy?'Обновление подписки':'Обновить подписку'}" title="Обновить подписку" onclick="event.stopPropagation();refreshSubscription(true,false,'${q(s.id)}')" ${busy?'disabled':''}><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 7a7 7 0 0 1 11.6-1L20 9M4 15l2.3 3A7 7 0 0 0 17.9 17"/></svg></button>`;
+    /* Lucide refresh-cw: https://github.com/lucide-icons/lucide/blob/main/icons/refresh-cw.svg
+       ISC License — Copyright (c) 2026 Lucide Icons and Contributors
+       Permission to use, copy, modify, and/or distribute this software for any
+       purpose with or without fee is hereby granted, provided that the above
+       copyright notice and this permission notice appear in all copies.
+       THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+       WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+       MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+       ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+       WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+       ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+       OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
+    const refresh=`<button type="button" class="sub-refresh${busy?' busy':''}" aria-label="${busy?'Обновление подписки':'Обновить подписку'}" title="Обновить подписку" onclick="event.stopPropagation();refreshSubscription(true,false,'${q(s.id)}')" ${busy?'disabled':''}><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></button>`;
     return `<div class="row${on?' sub-on':''}" onclick="switchSub('${q(s.id)}')">${logo}`+
       `<div class="grow"><div class="t">${esc(s.title||s.name)}</div><div class="s">${sub}</div>${ua}</div>`+
       refresh+`<span class="chev" onclick="delSub('${q(s.id)}',event)">✕</span></div>`;

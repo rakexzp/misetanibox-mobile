@@ -83,6 +83,30 @@ test('settings/back rapid reversal and canceled panel gesture settle cleanly',()
  events.get('touchstart')({touches:[{clientX:350,clientY:100}]});events.get('touchmove')({touches:[{clientX:40,clientY:100}]});events.get('touchcancel')();e.flush();assert.equal(e.run('tab'),'home');assert(e.node('view-rules').classList.contains('hidden'));
  e.run("openPanel('subs',true)");e.ctx.document.hidden=true;events.get('visibilitychange')();e.flush();assert.equal(e.run('panelOpen'),'subs');
 });
+test('moving screens and side panels have no decorative edge shadows',()=>{
+ const css=html.match(/<style>([\s\S]*?)<\/style>/)[1].replace(/\/\*[\s\S]*?\*\//g,'');
+ const rules=[...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([,selector])=>selector.split(',').some(s=>/^(?:#view-(?:rules|subs)|\.view\.(?:drag-over|drag-under|push-in|push-out|pop-in|pop-out))(?=[:.\s>]|$)/.test(s.trim())));
+ assert.ok(rules.length>0);
+ for(const [,selector,body] of rules){
+  assert.doesNotMatch(body,/(?:box-shadow|text-shadow)\s*:\s*(?!none\b)[^;]+|drop-shadow\(/,selector);
+  assert.doesNotMatch(body,/linear-gradient\(\s*(?:to (?:left|right)|90deg|270deg)/,selector);
+ }
+});
+for(const name of ['rules','subs'])for(const reduced of [false,true])test(`${name} close and canceled swipe leave no dim (reduced motion: ${reduced})`,()=>{
+ const e=env(),events=new Map();e.ctx.window.matchMedia=()=>({matches:reduced});e.ctx.document.addEventListener=(k,f)=>events.set(k,f);e.ctx.onboardingOpen=()=>false;e.ctx.prepView=()=>{};
+ e.run(section("let tab='home'",'// лист серверов: тянется вниз'));e.ctx.subs=()=>[];e.ctx.activeSub=()=>null;e.ctx.document.querySelectorAll=()=>[];
+ const clean=()=>{assert.equal(e.run('tab'),'home');assert.equal(e.run('panelOpen'),'');assert.equal(e.node('drawer-dim').style.opacity,'0');assert(e.node('drawer-dim').classList.contains('hidden'));assert(!e.node('drawer-dim').classList.contains('opening'));assert(!e.node('drawer-dim').classList.contains('anim'));assert.equal(e.node('view-home').style.transform,'');for(const n of ['rules','subs'])assert(e.node('view-'+n).classList.contains('hidden'));assert.equal(e.timers.size,0);};
+ e.run(`openPanel('${name}',true)`);e.flush();assert.equal(e.node('drawer-dim').style.opacity,'0.500');e.run(`closePanel('${name}',true)`);assert.equal(Number(e.node('drawer-dim').style.opacity),0);e.flush();clean();
+ const start=name==='rules'?350:40,end=name==='rules'?40:350;
+ events.get('touchstart')({touches:[{clientX:start,clientY:100}]});events.get('touchmove')({touches:[{clientX:end,clientY:100}]});assert(Number(e.node('drawer-dim').style.opacity)>0);events.get('touchcancel')();e.flush();clean();
+});
+test('subscription refresh renders canonical Lucide refresh-cw with a 44px target',()=>{
+ const e=multiRefreshEnv();refreshButtons(e);
+ const svg=e.node('subs-list').innerHTML.match(/class="sub-refresh[^>]*>(<svg[\s\S]*?<\/svg>)/)[1];
+ assert.deepEqual([...svg.matchAll(/<path d="([^"]+)"/g)].map(m=>m[1]),['M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8','M21 3v5h-5','M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16','M8 16H3v5']);
+ assert.match(svg,/stroke-width="2"/);assert.match(svg,/aria-hidden="true"/);
+ const css=html.match(/\.sub-refresh\{([^}]+)\}/)[1];assert.match(css,/width:44px/);assert.match(css,/height:44px/);
+});
 test('connected refresh applies validated cache through reconnect',async()=>{const e=refreshEnv();e.run('connected=true;var applied=false;async function reconnect(cache){applied=cache}');const p=e.run('refreshSubscription(true)');e.ctx.resolveFetch(good);assert.equal(await p,true);assert.equal(e.run('applied'),true);});
 test('native validation and API guards remain in place',()=>{
  const root='android/app/src/main/java/network/geodema/misetanibox/';const plugin=fs.readFileSync(root+'VpnPlugin.kt','utf8'),sub=fs.readFileSync(root+'Subscription.kt','utf8');
