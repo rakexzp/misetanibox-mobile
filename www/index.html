@@ -307,20 +307,22 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 .chain-warp .s{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:rgba(255,255,255,.5)}
 .chain-idx{flex:none;min-width:22px;height:22px;border-radius:11px;background:#fff;color:#111;font-family:var(--mono);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center}
 
-/* переходы между экранами: iOS-push (новый въезжает справа, старый уходит влево под затемнение).
-   Экраны прозрачные (общие обои), поэтому на время перехода — непрозрачная подложка, иначе просвечивают друг сквозь друга */
-@keyframes push-in{from{transform:translateX(100%)}to{transform:none}}
-@keyframes push-out{from{transform:none}to{transform:translateX(-30%)}}
-@keyframes pop-in{from{transform:translateX(-30%)}to{transform:none}}
-@keyframes pop-out{from{transform:none}to{transform:translateX(100%)}}
-@keyframes dim-on{from{opacity:0}to{opacity:1}}
-@keyframes dim-off{from{opacity:1}to{opacity:0}}
-.view.push-in,.view.push-out,.view.pop-in,.view.pop-out,.view.drag-over,.view.drag-under{position:absolute;inset:0;will-change:transform;overflow:hidden;background:#0f1013;isolation:isolate}
-/* та же подложка, что у .page-bg + .page-scrim, только внутри движущегося экрана */
-.view.push-in::before,.view.push-out::before,.view.pop-in::before,.view.pop-out::before,.view.drag-over::before,.view.drag-under::before{content:"";position:absolute;inset:0;z-index:-2;background:var(--wp-img,radial-gradient(120% 70% at 20% 0%,#4a5262 0%,transparent 60%),radial-gradient(90% 60% at 90% 40%,#2b303a 0%,transparent 60%),linear-gradient(160deg,#23262e,#0f1013)) center/cover;filter:grayscale(.85) contrast(.95);opacity:.55}
-.view.push-in .page-scrim-x,.view.push-out .page-scrim-x{display:none}
-.view.push-in>.scrim-layer,.view.push-out>.scrim-layer,.view.pop-in>.scrim-layer,.view.pop-out>.scrim-layer,.view.drag-over>.scrim-layer,.view.drag-under>.scrim-layer{display:block}
-.scrim-layer{display:none;position:absolute;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(180deg,rgba(0,0,0,.6) 0%,rgba(0,0,0,.72) 50%,rgba(0,0,0,.88) 100%)}
+/* Push: непрозрачная страница сохраняет одну подложку и в движении, и в покое.
+   Главная уже имеет cover-bg/cover-scrim — вторые обои под ней не нужны. */
+@keyframes push-in{from{transform:translateX(100%)}to{transform:translateX(0)}}
+@keyframes push-out{from{transform:translateX(0)}to{transform:translateX(-30%)}}
+@keyframes pop-in{from{transform:translateX(-30%)}to{transform:translateX(0)}}
+@keyframes pop-out{from{transform:translateX(0)}to{transform:translateX(100%)}}
+@keyframes dim-on{from{opacity:0}to{opacity:.45}}
+@keyframes dim-off{from{opacity:.45}to{opacity:0}}
+.view:not(#view-home):not(#view-rules):not(#view-subs){background:#0f1013;isolation:isolate;transform:translateX(0)}
+.view.push-in,.view.push-out,.view.pop-in,.view.pop-out,.view.drag-over,.view.drag-under{position:absolute;inset:0;will-change:transform;overflow:hidden;isolation:isolate}
+/* Фиксированные слои не прокручиваются вместе со списком; transform страницы везёт их целиком. */
+.view:not(#view-home):not(#view-rules):not(#view-subs)::before{content:"";position:fixed;inset:0;z-index:-2;pointer-events:none;background:var(--wp-img,radial-gradient(120% 70% at 20% 0%,#4a5262 0%,transparent 60%),radial-gradient(90% 60% at 90% 40%,#2b303a 0%,transparent 60%),linear-gradient(160deg,#23262e,#0f1013)) center/cover;filter:grayscale(.85) contrast(.95);opacity:.55}
+.view:not(#view-home):not(#view-rules):not(#view-subs)>.scrim-layer{display:block}
+.scrim-layer{display:none;position:fixed;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(180deg,rgba(0,0,0,.6) 0%,rgba(0,0,0,.72) 50%,rgba(0,0,0,.88) 100%)}
+/* Возврат — один push, без повторного hero-in после display:none. */
+#view-home.nav-visited .hero-line{animation:none}
 .view.push-in{animation:push-in .38s cubic-bezier(.32,.72,0,1) both;z-index:4}
 .view.push-out{animation:push-out .38s cubic-bezier(.32,.72,0,1) both;z-index:2;pointer-events:none}
 .view.pop-in{animation:pop-in .38s cubic-bezier(.32,.72,0,1) both;z-index:2}
@@ -714,7 +716,7 @@ function go(t){
   // выдвижные панели: правила справа, подписки слева
   if(t==='rules'||t==='subs'){ if(prev!=='home'&&!PANELS[prev]) showView('home',false); if(PANELS[prev]&&prev!==t) closePanel(prev,false); openPanel(t,true); return; }
   if(PANELS[prev]){ if(t==='home'){ closePanel(prev,true); return; } closePanel(prev,false); }
-  if(t==='home'){ popView(); return; }
+  if(t==='home'||t===navStack[navStack.length-2]){ popView(); return; }
   pushView(t);
 }
 // стек экранов: главная → настройки → цепочки/роутинг (iOS-push: новый въезжает справа, старый уходит влево)
@@ -735,6 +737,7 @@ function pushView(t){
   if(tab===t) return;
   const from=document.getElementById('view-'+tab), to=document.getElementById('view-'+t);
   prepView(t);
+  if(tab==='home') from.classList.add('nav-visited');
   navStack.push(t); tab=t;
   document.querySelector('.app')?.classList.remove('tab-home');
   to.classList.remove('hidden','pop-in','pop-out','push-out'); to.scrollTop=0;
@@ -750,7 +753,7 @@ function transEnd(el, fn){
   cancelTransition();
   let done=false, timer;
   const cancel=()=>{ done=true; clearTimeout(timer); el.removeEventListener('animationend',fin); el.removeEventListener('transitionend',fin); };
-  const fin=e=>{ if(done || (e&&e.target!==el)) return; cancel(); fn(); };
+  const fin=e=>{ if(done || (e&&(e.target!==el||e.pseudoElement))) return; cancel(); fn(); };
   cancelTransition=cancel;
   el.addEventListener('animationend',fin); el.addEventListener('transitionend',fin);
   timer=setTimeout(fin,reduceMotion()?0:500);
@@ -847,6 +850,7 @@ function overlayOpen(){ return onboardingOpen() || [...document.querySelectorAll
       if(tab==='home'){ name = dx<0 ? 'rules' : 'subs'; mode='panel'; prepPanel(name); }
       else if(fromOpen){ if(Math.sign(dx)!==PANELS[name].side) return; mode='panel'; }
       else if(sx<28 && dx>0){ // edge-swipe назад: оба экрана на непрозрачных подложках, затемнение нижнего через --dim
+        settleViews(); // жест забирает переход: старый completion не должен скрыть нижний экран
         mode='back'; backFrom=document.getElementById('view-'+tab); backTo=document.getElementById('view-'+(navStack[navStack.length-2]||'home'));
         backTo.classList.remove('hidden','push-out','push-in','pop-in','pop-out'); backFrom.classList.remove('push-in','push-out','pop-in','pop-out');
         backTo.classList.add('drag-under'); backFrom.classList.add('drag-over'); backTo.style.transition='none'; backFrom.style.transition='none';

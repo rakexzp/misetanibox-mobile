@@ -83,6 +83,41 @@ test('settings/back rapid reversal and canceled panel gesture settle cleanly',()
  events.get('touchstart')({touches:[{clientX:350,clientY:100}]});events.get('touchmove')({touches:[{clientX:40,clientY:100}]});events.get('touchcancel')();e.flush();assert.equal(e.run('tab'),'home');assert(e.node('view-rules').classList.contains('hidden'));
  e.run("openPanel('subs',true)");e.ctx.document.hidden=true;events.get('visibilitychange')();e.flush();assert.equal(e.run('panelOpen'),'subs');
 });
+function navigationEnv(reduced=false){
+ const e=env(),events=new Map();e.ctx.document.addEventListener=(k,f)=>events.set(k,f);e.ctx.onboardingOpen=()=>false;e.ctx.window.matchMedia=()=>({matches:reduced});
+ e.run(section("let tab='home'",'// лист серверов: тянется вниз'));Object.assign(e.ctx,{subs:()=>[],activeSub:()=>null,renderChains(){},openAppsScreen(){}});
+ for(const n of ['home','settings','chains','apps','rules','subs'])e.node('view-'+n);
+ const views=e.ctx.document.querySelectorAll;e.ctx.document.querySelectorAll=s=>s==='.view'?views():[];
+ e.events=events;return e;
+}
+function assertNavigationClean(e,tab){
+ assert.equal(e.run('tab'),tab);assert.equal(e.timers.size,0);
+ for(const n of ['home','settings','chains','apps']){
+  const v=e.node('view-'+n);assert.equal(v.classList.contains('hidden'),n!==tab,n);
+  for(const c of ['push-in','push-out','pop-in','pop-out','drag-under','drag-over','anim'])assert.equal(v.classList.contains(c),false,n+' '+c);
+  for(const p of ['transform','opacity','transition'])assert.ok(!v.style[p],n+' '+p);
+  assert.equal(v.style['--dim'],undefined);assert.equal(v.listeners.size,0);
+ }
+}
+test('pseudo-element animation cannot finish the page transition',()=>{
+ const e=navigationEnv();e.run("go('settings')");const to=e.node('view-settings');
+ to.listeners.get('animationend')({target:to,pseudoElement:'::after'});
+ assert.equal(e.node('view-home').classList.contains('hidden'),false);
+ to.listeners.get('animationend')({target:to,pseudoElement:''});assertNavigationClean(e,'settings');
+});
+test('edge-back takes ownership from an unfinished settings push',()=>{
+ const e=navigationEnv();e.run("go('settings')");
+ e.events.get('touchstart')({touches:[{clientX:5,clientY:100}]});e.events.get('touchmove')({touches:[{clientX:100,clientY:100}]});
+ e.flush();assert.equal(e.node('view-home').classList.contains('hidden'),false);assert.equal(e.node('view-settings').listeners.size,0);
+ e.events.get('touchcancel')();assertNavigationClean(e,'settings');
+});
+for(const reduced of [false,true])test(`settings push/back cleanup and nested return (reduced motion: ${reduced})`,()=>{
+ const e=navigationEnv(reduced);e.run("go('settings')");e.flush();assertNavigationClean(e,'settings');
+ assert.equal(e.node('view-home').classList.contains('nav-visited'),true);
+ e.run("go('chains')");e.flush();e.run("go('settings')");assert.equal(e.node('view-chains').classList.contains('pop-out'),true);e.flush();assertNavigationClean(e,'settings');
+ assert.equal(e.run('JSON.stringify(navStack)'), '["settings"]');
+ e.run("navBack();go('settings');navBack()");e.flush();assertNavigationClean(e,'home');assert.equal(e.run('navBack()'),'exit');
+});
 test('moving screens and side panels have no decorative edge shadows',()=>{
  const css=html.match(/<style>([\s\S]*?)<\/style>/)[1].replace(/\/\*[\s\S]*?\*\//g,'');
  const rules=[...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([,selector])=>selector.split(',').some(s=>/^(?:#view-(?:rules|subs)|\.view\.(?:drag-over|drag-under|push-in|push-out|pop-in|pop-out))(?=[:.\s>]|$)/.test(s.trim())));
