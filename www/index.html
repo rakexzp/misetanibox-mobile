@@ -356,6 +356,12 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 .sub-ua{display:inline-block;margin-top:7px;padding:4px 8px;border-radius:7px;font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:rgba(255,255,255,.6);background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
 .sub-ua.set{color:#fff;background:rgba(255,255,255,.16)}
 .sub-ua:active{background:rgba(255,255,255,.26)}
+.sub-refresh{display:grid;place-items:center;flex:0 0 44px;width:44px;height:44px;padding:0;border:0;background:none;color:rgba(255,255,255,.7);cursor:pointer}
+.sub-refresh:active{color:#fff}
+.sub-refresh:disabled{cursor:default;opacity:.55}
+.sub-refresh.busy svg{animation:sub-refresh-spin 1s linear infinite}
+@keyframes sub-refresh-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.sub-refresh.busy svg{animation:none}}
 .sub-actions{display:flex;gap:8px;margin:4px 16px 8px}
 .sub-actions .sub-btn{flex:1;min-height:44px}
 .sub-announce{white-space:pre-line}
@@ -1485,13 +1491,13 @@ function renderSubs(){
     const sub=parts.length?esc(parts.join(' · ')):esc(s.url.replace(/^https?:\/\//,'').slice(0,38));
     const ua=`<span class="sub-ua${s.ua?' set':''}" onclick="openUaModal('${q(s.id)}',event)">UA · ${esc(uaLabel(getUserAgent(s)))}</span>`;
     const logo=s.logo?`<img class="sub-logo" src="${esc(s.logo)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'sub-logo dot'}))">`:`<span class="sub-logo dot${on?' on':''}"></span>`;
+    const busy=on&&subRequests.has(s.id+'|'+getUserAgent(s)+'|'+subGeneration);
+    const refresh=on?`<button type="button" class="sub-refresh${busy?' busy':''}" aria-label="${busy?'Обновление подписки':'Обновить подписку'}" title="Обновить подписку" onclick="event.stopPropagation();refreshSubscription(true)" ${busy?'disabled':''}><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 7a7 7 0 0 1 11.6-1L20 9M4 15l2.3 3A7 7 0 0 0 17.9 17"/></svg></button>`:'';
     return `<div class="row${on?' sub-on':''}" onclick="switchSub('${q(s.id)}')">${logo}`+
       `<div class="grow"><div class="t">${esc(s.title||s.name)}</div><div class="s">${sub}</div>${ua}</div>`+
-      `<span class="chev" onclick="delSub('${q(s.id)}',event)">✕</span></div>`;
+      refresh+`<span class="chev" onclick="delSub('${q(s.id)}',event)">✕</span></div>`;
   }).join('');
   const a=list.find(x=>x.id===act)||list[0];
-  const busy=a&&subRequests.has(a.id+'|'+getUserAgent(a)+'|'+subGeneration);
-  if(a) html+=`<div class="sub-actions"><button class="sub-btn primary" onclick="refreshSubscription(true)" ${busy?'disabled':''}>${busy?'Обновляю…':'Обновить подписку'}</button></div>`;
   const error=localStorage.getItem(ck('mise_subErr')); if(error) html+=`<div class="list-note" role="status">${esc(error)} · Используется сохранённая копия</div>`;
   if(a&&(a.webPage||a.supportUrl)) html+=`<div class="sub-actions">${a.webPage?`<button class="sub-btn primary" onclick="openExternal('${q(a.webPage)}')">Продлить</button>`:''}${a.supportUrl?`<button class="sub-btn" onclick="openExternal('${q(a.supportUrl)}')">Поддержка</button>`:''}</div>`;
   if(a&&a.announce) html+=`<div class="list-note sub-announce">${esc(a.announce)}</div>`;
