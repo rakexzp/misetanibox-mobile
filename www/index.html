@@ -428,6 +428,14 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 #mise-toast.show{transform:none}
 html.ios .android-only{display:none!important}
 html:not(.ios) .ios-only{display:none!important}
+/* Собственный отклик вместо синей вспышки WebView. */
+*{-webkit-tap-highlight-color:transparent}
+:where(button,a,[role="button"],[onclick]):where(:not(:disabled)){transition:background-color .14s ease,opacity .14s ease}
+:where(button,a,[role="button"],[onclick]):not(:disabled):active{opacity:.72}
+.view:not(#view-home) .row:not(:disabled):active,.sheet-item:not(:disabled):active{background:rgba(255,255,255,.12)}
+.cover-icon:not(:disabled):active,.sub-refresh:not(:disabled):active,.icon-btn:not(:disabled):active{background:rgba(255,255,255,.12);border-radius:50%}
+:where(button,a,[role="button"],[tabindex]):focus-visible{outline:2px solid var(--fg);outline-offset:3px}
+@media(prefers-reduced-motion:reduce){:where(button,a,[role="button"],[onclick]):not(:disabled){transition:none}}
 </style>
 </head>
 <body>
@@ -925,7 +933,7 @@ function sheetDrag(overlay){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'v0.21.14';
+const BUILD = 'v0.21.15';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
