@@ -98,6 +98,18 @@ func ConvertSubscription(body string) (*ConvertResult, error) {
 	case FormatURI:
 		return convertURIList(payload)
 	default:
+		// Detection falling back to YAML is not validation: HTML and arbitrary
+		// text must never replace a working offline subscription.
+		var root struct {
+			Proxies []map[string]interface{} `yaml:"proxies"`
+			Providers map[string]map[string]interface{} `yaml:"proxy-providers"`
+		}
+		if err := yaml.Unmarshal([]byte(text), &root); err != nil {
+			return nil, fmt.Errorf("невалидный YAML подписки: %w", err)
+		}
+		if len(root.Proxies) == 0 && len(root.Providers) == 0 {
+			return nil, fmt.Errorf("в подписке нет proxies или proxy-providers")
+		}
 		return &ConvertResult{Config: text, Format: FormatMihomo, Sheet: mihomoSheet(text), Nodes: mihomoNodes(text)}, nil
 	}
 }

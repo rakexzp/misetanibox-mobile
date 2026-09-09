@@ -73,7 +73,14 @@ object Subscription {
         val h = java.security.MessageDigest.getInstance("SHA-1").digest(url.toByteArray()).joinToString("") { "%02x".format(it) }
         return java.io.File(d, "$h.yaml")
     }
-    fun saveCache(ctx: android.content.Context, url: String, body: String) { try { if (body.isNotBlank()) cacheFile(ctx, url).writeText(body) } catch (_: Exception) {} }
+    @Synchronized
+    fun saveCache(ctx: android.content.Context, url: String, body: String) {
+        convert(body) // Никогда не заменяем рабочую офлайн-копию HTML/ошибкой панели.
+        val target = cacheFile(ctx, url)
+        val temp = java.io.File(target.path + ".tmp")
+        temp.writeText(body)
+        check(temp.renameTo(target)) { "не удалось сохранить подписку" }
+    }
     fun loadCache(ctx: android.content.Context, url: String): String = try { val f = cacheFile(ctx, url); if (f.exists()) f.readText() else "" } catch (_: Exception) { "" }
 
     fun resolveFallbackUrl(primary: String, fb: String): String {
@@ -85,19 +92,24 @@ object Subscription {
         } catch (_: Exception) { "" }
     }
 
-    /** Основная ссылка, потом запасные по очереди; первая с 2xx выигрывает. */
+    private fun validated(r: Fetched): Fetched {
+        if (r.status !in 200..299) return r
+        return try { convert(r.body); r } catch (e: Exception) { Fetched(422, "", e.message ?: "невалидная подписка") }
+    }
+
+    /** Основная ссылка, потом запасные; выигрывает только проверенный конфиг. */
     /** Общий дедлайн на все попытки (основная + запасные): для старта туннеля 5 с, потом — копия. */
     fun fetchAny(url: String, hwid: String, userAgent: String, fallbacks: List<String>, proxyPort: Int = 0, deadlineMs: Long = 0L): Fetched {
         val t0 = System.currentTimeMillis()
         fun left(): Int = if (deadlineMs <= 0) 0 else (deadlineMs - (System.currentTimeMillis() - t0)).toInt()
         if (deadlineMs > 0 && left() <= 0) return Fetched(0, "", "таймаут")
-        var last = fetch(url, hwid, userAgent, proxyPort, left())
+        var last = validated(fetch(url, hwid, userAgent, proxyPort, left()))
         if (last.status in 200..299 && last.body.isNotBlank()) return last
         val seen = HashSet<String>(); seen.add(url)
         for (fb in fallbacks) {
             val u = resolveFallbackUrl(url, fb.trim()); if (u.isEmpty() || !seen.add(u)) continue
             if (deadlineMs > 0 && left() <= 300) break
-            val r = fetch(u, hwid, userAgent, proxyPort, left())
+            val r = validated(fetch(u, hwid, userAgent, proxyPort, left()))
             if (r.status in 200..299 && r.body.isNotBlank()) return r
             last = r
         }

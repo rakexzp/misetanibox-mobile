@@ -343,7 +343,10 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 #view-subs{transform:translateX(-100%);box-shadow:1px 0 0 rgba(255,255,255,.08),40px 0 80px rgba(0,0,0,.55)}
 #drawer-dim{position:absolute;inset:0;z-index:5;background:#000;opacity:0;pointer-events:none}
 #view-home{will-change:transform;transform-origin:50% 50%}
-#view-rules.anim,#view-subs.anim,#view-home.anim,#drawer-dim.anim{transition:transform 480ms cubic-bezier(.22,1.28,.34,1),opacity 480ms cubic-bezier(.22,1,.36,1)}
+#view-rules.anim,#view-subs.anim,#view-home.anim{transition:transform 480ms cubic-bezier(.22,1.28,.34,1)}
+/* затемнение: гаснет быстро и без пружины — иначе вуаль висит, пока панель дотягивает хвост анимации */
+#drawer-dim.anim{transition:opacity 160ms ease-out}
+#drawer-dim.anim.opening{transition:opacity 300ms ease-out}
 #view-rules.hidden,#view-subs.hidden{display:none}
 
 .sub-logo{width:38px;height:38px;border-radius:11px;object-fit:cover;flex:none;background:rgba(255,255,255,.1)}
@@ -605,6 +608,29 @@ html:not(.ios) .ios-only{display:none!important}
 
 </div>
 
+<style>
+#onboarding{position:fixed;inset:0;z-index:90;overflow:auto;padding:calc(30px + var(--sat,0px)) 14px 24px;background:rgba(0,0,0,.62);backdrop-filter:grayscale(1);color:#fff}
+#onboarding .intro-card{max-width:460px;margin:auto;padding:22px;background:rgba(35,35,38,.94);border:1px solid #ffffff24;border-radius:24px}
+#onboarding h1{font-size:25px;line-height:1.1;margin:8px 0 14px}
+#onboarding p,#onboarding li{font-size:14px;line-height:1.5;color:#ffffffba}
+#onboarding li{padding:7px 0}
+#onboarding .disclaimer{max-width:460px;margin:24px auto;font-size:11px;color:#ffffff80;line-height:1.5}
+#onboarding-error{color:#ff9088!important}
+body.onboarding .app{pointer-events:none;filter:grayscale(1)}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;animation-iteration-count:1!important}}
+</style>
+<div id="onboarding" class="hidden" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
+  <form class="intro-card" onsubmit="event.preventDefault();submitOnboarding()">
+    <div class="sub-modal-hint">ОТКУДА ВЗЯТЬ ПОДПИСКУ</div>
+    <h1 id="onboarding-title">ДОБАВЬ СВОЮ<br>ПОДПИСКУ</h1>
+    <p>Приложение само ничего не даёт — серверы приходят от твоего VPN-сервиса.</p>
+    <ol><li>Открой бот или сайт своего VPN-сервиса</li><li>Найди ссылку на подписку и скопируй</li><li>Вернись сюда и вставь её ниже</li></ol>
+    <input id="onboarding-url" class="sub-input" type="url" required placeholder="https://…" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Ссылка на подписку">
+    <p id="onboarding-error" role="alert"></p>
+    <div class="sub-modal-btns"><button type="button" class="sub-btn" onclick="pasteOnboarding()">Вставить</button><button id="onboarding-submit" class="sub-btn primary" type="submit">Добавить</button></div>
+  </form>
+  <p class="disclaimer">Это приложение — только клиент для прокси-подключений. Оно не предоставляет, не обслуживает и не управляет серверами или сетевыми сервисами: все узлы принадлежат выбранному вами стороннему провайдеру, и он отвечает за их доступность, стабильность и безопасность. По вопросам работы серверов обращайтесь напрямую к своему провайдеру.</p>
+</div>
 <script>
 // ---------- тост (alert/prompt в WebView ненадёжны) ----------
 function toast(msg){
@@ -675,6 +701,8 @@ function pingColor(p){return (p>0&&p<80)?'var(--ok)':(p<180)?'var(--mid)':'var(-
 let tab='home';
 let appsBack='rules';
 function go(t){
+  if(onboardingOpen()) return;
+  cancelGesture(); if(!PANELS[tab]) settleViews();
   if(t==='servers'){ openServerSheet(); return; }
   const prev=tab;
   // выдвижные панели: правила справа, подписки слева
@@ -709,12 +737,26 @@ function pushView(t){
   haptic('tick');
   transEnd(to, ()=>{ from.classList.add('hidden'); from.classList.remove('push-out'); to.classList.remove('push-in'); });
 }
-// конец перехода: по animationend въезжающего экрана, с запасным таймером
-let transTimer=null;
+// Один владелец перехода: отмена снимает и listener, и запасной таймер.
+let cancelTransition=()=>{};
+const reduceMotion=()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 function transEnd(el, fn){
-  clearTimeout(transTimer);
-  let done=false; const fin=()=>{ if(done) return; done=true; el.removeEventListener('animationend',fin); clearTimeout(transTimer); fn(); };
-  el.addEventListener('animationend', fin); transTimer=setTimeout(fin, 450);
+  cancelTransition();
+  let done=false, timer;
+  const cancel=()=>{ done=true; clearTimeout(timer); el.removeEventListener('animationend',fin); el.removeEventListener('transitionend',fin); };
+  const fin=e=>{ if(done || (e&&e.target!==el)) return; cancel(); fn(); };
+  cancelTransition=cancel;
+  el.addEventListener('animationend',fin); el.addEventListener('transitionend',fin);
+  timer=setTimeout(fin,reduceMotion()?0:500);
+}
+function settleViews(){
+  cancelTransition();
+  for(const v of document.querySelectorAll('.view')){
+    if(PANELS[v.id.slice(5)]) continue;
+    v.classList.toggle('hidden',v.id!=='view-'+tab);
+    v.classList.remove('push-in','push-out','pop-in','pop-out','drag-under','drag-over','anim');
+    v.style.transform=''; v.style.opacity=''; v.style.transition=''; v.style.removeProperty('--dim');
+  }
 }
 function popView(){
   const cur=tab; if(cur==='home') return;
@@ -743,34 +785,50 @@ function setPanelX(name, x, anim){
   h.style.transform='translateX('+(-side*p*vw()*.18)+'px) scale('+(1-p*.04)+')';
   dim.style.opacity=(p*.5).toFixed(3);
 }
+let panelFrame=0, panelGeneration=0;
+function cancelPanelWork(){ clearTimeout(panelTimer); cancelAnimationFrame(panelFrame); panelFrame=0; return ++panelGeneration; }
+function clearPanel(name){
+  const d=document.getElementById('view-'+name);
+  d.classList.add('hidden'); d.classList.remove('anim'); d.style.transform='';
+}
+function resetPanelHome(){
+  const h=document.getElementById('view-home'), dim=document.getElementById('drawer-dim');
+  h.classList.remove('anim'); h.style.transform='';
+  dim.classList.add('hidden'); dim.classList.remove('anim','opening'); dim.style.opacity='0';
+}
 function prepPanel(name){
+  cancelPanelWork();
+  for(const other of Object.keys(PANELS)) if(other!==name) clearPanel(other);
   const d=document.getElementById('view-'+name), dim=document.getElementById('drawer-dim');
-  clearTimeout(panelTimer);
-  if(d.classList.contains('hidden')){ setPanelX(name,vw(),false); d.classList.remove('hidden'); dim.classList.remove('hidden'); void d.offsetWidth; }
+  if(d.classList.contains('hidden')){ setPanelX(name,vw(),false); d.classList.remove('hidden'); void d.offsetWidth; }
+  dim.classList.remove('hidden');
   if(name==='rules'){ applyModeLabel(); applyExpertUi(); const ss=document.getElementById('split-sub2'), so=document.getElementById('split-sub'); if(ss&&so) ss.textContent=so.textContent; }
   if(name==='subs') renderSubs();
 }
 function openPanel(name, anim){
   prepPanel(name); const was=panelOpen===name; panelOpen=name; tab=name;
-  requestAnimationFrame(()=>setPanelX(name,0,anim));
+  document.getElementById('drawer-dim').classList.add('opening');
+  const generation=panelGeneration;
+  panelFrame=requestAnimationFrame(()=>{ if(generation===panelGeneration&&panelOpen===name) setPanelX(name,0,anim&&!reduceMotion()); });
   if(!was) haptic('heavy');
 }
 function closePanel(name, anim){
-  const d=document.getElementById('view-'+name), dim=document.getElementById('drawer-dim');
-  const was=panelOpen===name; if(was) panelOpen=''; tab='home';
+  const generation=cancelPanelWork(), was=panelOpen===name;
+  if(was) panelOpen=''; tab='home';
   document.querySelector('.app')?.classList.add('tab-home');
-  if(d.classList.contains('hidden')) return;
-  setPanelX(name,vw(),anim);
+  document.getElementById('drawer-dim').classList.remove('opening');
+  setPanelX(name,vw(),anim&&!reduceMotion());
+  const finish=()=>{ if(generation!==panelGeneration) return; clearPanel(name); if(!panelOpen) resetPanelHome(); };
+  if(anim&&!reduceMotion()) panelTimer=setTimeout(finish,500); else finish();
   if(was&&anim) haptic('tick');
-  clearTimeout(panelTimer);
-  panelTimer=setTimeout(()=>{ if(!panelOpen){ d.classList.add('hidden'); dim.classList.add('hidden'); } }, anim?500:0);
 }
 // совместимость со старыми вызовами
 function openDrawer(anim){ openPanel('rules',anim); }
 function closeDrawer(anim){ closePanel(panelOpen||'rules',anim); }
 
 // ---------- свайп-навигация: панели тянутся за пальцем; edge-swipe от левого края = «назад» на push-экранах ----------
-function overlayOpen(){ return [...document.querySelectorAll('.sub-modal,.cover-sheet-overlay')].some(e=>!e.classList.contains('hidden')); }
+let cancelGesture=()=>{};
+function overlayOpen(){ return onboardingOpen() || [...document.querySelectorAll('.sub-modal,.cover-sheet-overlay')].some(e=>!e.classList.contains('hidden')); }
 (function(){
   let sx=0, sy=0, drag=false, mode='', name='', fromOpen=false, lastX=0, lastT=0, vx=0, curX=0, backFrom=null, backTo=null;
   const rubber=v=>v*.28;
@@ -818,18 +876,27 @@ function overlayOpen(){ return [...document.querySelectorAll('.sub-modal,.cover-
       if(p0>.3 || vx>.45){ // дожимаем назад: экран уходит вправо, нижний встаёт на место
         f.style.transform='translateX(100%)'; t.style.transform='translateX(0)'; t.style.setProperty('--dim','0');
         navStack.pop(); const back=navStack[navStack.length-1]||'home'; tab=back; prepView(back); document.querySelector('.app')?.classList.toggle('tab-home', back==='home');
-        setTimeout(()=>{ cleanup(); f.classList.add('hidden'); }, 420);
+        transEnd(f,()=>{ cleanup(); f.classList.add('hidden'); });
       } else { // возвращаем на место
         f.style.transform='translateX(0)'; t.style.transform='translateX(-30%)'; t.style.setProperty('--dim','.45');
-        setTimeout(()=>{ cleanup(); t.classList.add('hidden'); }, 420);
+        transEnd(f,()=>{ cleanup(); t.classList.add('hidden'); });
       }
     }
   }
   document.addEventListener('touchend', endDrag, {passive:true});
-  document.addEventListener('touchcancel', endDrag, {passive:true});
+  cancelGesture=()=>{
+    if(!drag) return; drag=false;
+    if(mode==='panel'){ if(fromOpen) openPanel(name,false); else closePanel(name,false); }
+    else settleViews();
+    mode='';
+  };
+  document.addEventListener('touchcancel', cancelGesture, {passive:true});
+  document.addEventListener('visibilitychange',()=>{ if(document.hidden){ cancelGesture(); if(panelOpen) openPanel(panelOpen,false); else { cancelPanelWork(); for(const n of Object.keys(PANELS)) clearPanel(n); resetPanelHome(); } if(!PANELS[tab]) settleViews(); } });
 })();
 // системная кнопка «назад» (MainActivity → evaluateJavascript): 'exit' = свернуть приложение
 function navBack(){
+  if(onboardingOpen()){ document.activeElement?.blur(); return 'ok'; }
+  cancelGesture(); if(!PANELS[tab]) settleViews();
   const sheet=document.getElementById('server-sheet'); if(sheet&&!sheet.classList.contains('hidden')){ closeServerSheet(); return 'ok'; }
   for(const m of document.querySelectorAll('.sub-modal')) if(!m.classList.contains('hidden')){ m.classList.add('hidden'); return 'ok'; }
   if(tab==='home') return 'exit';
@@ -844,7 +911,7 @@ function sheetDrag(overlay){
   card.addEventListener('touchstart', e=>{ if(e.touches.length!==1) return; const inList=list&&list.contains(e.target); if(inList&&list.scrollTop>0) return; y0=e.touches[0].clientY; dy=0; on=true; t0=Date.now(); card.style.transition='none'; }, {passive:true});
   card.addEventListener('touchmove', e=>{ if(!on) return; dy=Math.max(0,e.touches[0].clientY-y0); if(dy>0&&list&&list.contains(e.target)&&list.scrollTop>0){ on=false; card.style.transform=''; return; } card.style.transform='translateY('+dy+'px)'; }, {passive:true});
   const end=()=>{ if(!on) return; on=false; card.style.transition='transform .32s cubic-bezier(.32,.72,0,1)'; const v=dy/Math.max(1,Date.now()-t0); if(dy>card.offsetHeight*.33||v>.6){ card.style.transform='translateY(100%)'; haptic('tick'); setTimeout(()=>{ overlay.classList.add('hidden'); card.style.transform=''; card.style.transition=''; },300); } else { card.style.transform=''; setTimeout(()=>{ card.style.transition=''; },320); } };
-  card.addEventListener('touchend', end, {passive:true}); card.addEventListener('touchcancel', end, {passive:true});
+  card.addEventListener('touchend', end, {passive:true}); card.addEventListener('touchcancel', ()=>{ on=false; dy=0; card.style.transform=''; card.style.transition=''; }, {passive:true});
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
@@ -903,11 +970,12 @@ function subName(url){ try{ return new URL(url).hostname; }catch{ return (url||'
 function activeSubId(){ return localStorage.getItem('mise_subActive')||''; }
 function activeSub(){ const l=subs(); return l.find(s=>s.id===activeSubId()) || l[0] || null; }
 function setActiveSub(id){
+  ++subGeneration;
   localStorage.setItem('mise_subActive', id);
   const s=subs().find(x=>x.id===id);
   if(s) localStorage.setItem('mise_subUrl', s.url); // синхрон для нативной части
   // список серверов/формат относятся к прошлой подписке
-  localStorage.removeItem(ck('mise_lastServers')); localStorage.removeItem('mise_preferred'); localStorage.removeItem('mise_subFormat');
+  localStorage.removeItem('mise_preferred'); localStorage.removeItem('mise_subFormat');
 }
 function ck(base){ return base+':'+(activeSubId()||'_'); }
 function getSubUrl(){ const s=activeSub(); return s ? s.url : (localStorage.getItem('mise_subUrl')||''); }
@@ -918,36 +986,77 @@ function switchSub(id){
   const sub=subs().find(s=>s.id===id);
   _proxies=null; _mainSel=null; _providerNodes=null; for(const k of Object.keys(delays)) delete delays[k];
   updateHomeServer(null); renderServerSheet(); updateCoverMeta();
-  fetchSubMeta(sub); refreshServerList();
-  if(connected){ suppressProxies=true; toast('Переподключаюсь к '+((sub&&(sub.title||sub.name))||'подписке')); reconnect(); }
-  else toast('Активная: '+((sub&&(sub.title||sub.name))||''));
+  const generation=subGeneration, wasConnected=connected;
+  refreshSubscription().then(ok=>{ if(ok&&wasConnected&&connected&&generation===subGeneration){ suppressProxies=true; reconnect(true).catch(e=>toast(e.message)); } });
+  toast('Активная: '+((sub&&(sub.title||sub.name))||''));
 }
 // список серверов новой подписки — сразу, не дожидаясь подключения
-async function refreshServerList(){
-  const sub=getSubUrl(); if(!sub||!Vpn||!Vpn.fetchSub) return;
-  const id=activeSubId();
-  try{ const r=await Vpn.fetchSub({url:sub, hwid:getHwid(), userAgent:getUserAgent(), fallbacks:subFallbacks(activeSub())});
-    if(activeSubId()!==id) return;
-    if(!r || r.status<200 || r.status>=300 || !r.body){ const why=r&&r.status?('HTTP '+r.status):(r&&r.error)||'нет ответа'; localStorage.setItem(ck('mise_subErr'), why); renderServerSheet(); toast('Подписка недоступна: '+why); return; }
-    localStorage.removeItem(ck('mise_subErr'));
-    const sheet=safeJson(r.sheet||'');
-    if(sheet&&Array.isArray(sheet.members)&&sheet.members.length){ localStorage.setItem(ck('mise_mainServers'), JSON.stringify({all:sheet.members, now:'', auto:sheet.auto||'', groups:sheet.groups||{}})); }
-    else { const names=(r.names&&r.names.length)?r.names:parseSubNames(r.body); if(names.length) localStorage.setItem(ck('mise_lastServers'), JSON.stringify({all:names, now:getPreferred()})); }
-    if(r.format) localStorage.setItem('mise_subFormat', r.formatLabel||r.format);
-    renderServerSheet(); renderSubs();
-  }catch{}
+const subRequests=new Map();
+let subGeneration=0;
+function validSubResponse(r){ return !!(r&&r.status>=200&&r.status<300&&r.body&&r.format&&!r.error); }
+function applySubResponse(sub,r){
+  const l=subs(), a=l.find(x=>x.id===sub.id); if(!a) return;
+  if(!r.cached){
+    for(const k of ['title','logo','webPage','supportUrl','announce']) a[k]=r[k]||'';
+    a.userinfo=parseUserinfo(r.userinfo||''); a.metaAt=Date.now();
+    a.fallbacks=String(r.fallbacks||'').split('\n').map(x=>x.trim()).filter(Boolean);
+    const ne=String(r.notifExpire||'').trim();
+    a.flags={notif:!!ne&&!/^(0|false|no|off)$/i.test(ne),notifDays:/^\d+$/.test(ne)?Math.min(30,Math.max(1,+ne)):3,pingType:String(r.pingType||'').toLowerCase(),checkUrl:r.checkUrl||'',pingResult:String(r.pingResult||'').toLowerCase(),updateOnOpen:/^(1|true|yes|on)$/i.test(r.updateOnOpen||'')};
+    a.nodes=safeJson(r.nodes||'')||{};
+  }
+  saveSubs(l);
+  const sh=safeJson(r.sheet||''), names=(r.names&&r.names.length)?r.names:parseSubNames(r.body);
+  const all=sh&&Array.isArray(sh.members)&&sh.members.length?sh.members:names;
+  const pref=getPreferred(); if(pref&&!all.includes(pref)) localStorage.removeItem('mise_preferred');
+  localStorage.setItem(ck('mise_lastServers'),JSON.stringify({all:names,now:getPreferred()}));
+  localStorage.setItem(ck('mise_mainServers'),JSON.stringify({all,now:getPreferred(),auto:sh?.auto||'',groups:sh?.groups||{}}));
+  localStorage.setItem('mise_subFormat',r.formatLabel||r.format);
+  localStorage.removeItem(ck('mise_subErr')); scheduleReminder(a);
+  renderSubs(); renderServerSheet(); updateCoverMeta();
 }
-async function reconnect(){
-  try{ await Vpn.stop(); }catch{}
-  const t0=Date.now();
-  const t=setInterval(()=>{ if(!connected){ clearInterval(t); suppressProxies=false; setTimeout(toggleConnect,400); } else if(Date.now()-t0>8000){ clearInterval(t); suppressProxies=false; toast('Не удалось переподключиться — нажми «Подключить»'); } },300);
+async function refreshSubscription(manual=false,viaProxy=false){
+  const sub=activeSub(); if(!sub||!Vpn?.fetchSub) return false;
+  const ua=getUserAgent(sub), generation=subGeneration, key=sub.id+'|'+ua+'|'+generation;
+  if(subRequests.has(key)) return subRequests.get(key);
+  const current=()=>subGeneration===generation&&activeSubId()===sub.id&&subs().some(s=>s.id===sub.id&&s.url===sub.url&&getUserAgent(s)===ua);
+  const work=(async()=>{
+    try{
+      const r=await Vpn.fetchSub({url:sub.url,hwid:getHwid(),userAgent:ua,fallbacks:subFallbacks(sub),viaProxy,allowCache:!manual});
+      if(!current()) return false;
+      if(!validSubResponse(r)||(manual&&r.cached)) throw Error(r?.error||('HTTP '+(r?.status||0)));
+      if(!r.cached){ await Vpn.saveSubCache({url:sub.url,body:r.body}); if(!current()) return false; }
+      applySubResponse(sub,r);
+      if(manual){
+        if(connected){ suppressProxies=true; await reconnect(true); }
+        if(!current()) return false;
+        toast(r.usedUrl&&r.usedUrl!==sub.url?'Подписка обновлена через запасной адрес':'Подписка обновлена');
+      }
+      return true;
+    }catch(e){ if(current()){ localStorage.setItem(ck('mise_subErr'),e.message||String(e)); toast('Не удалось обновить: '+(e.message||e)+'. Рабочая копия сохранена'); } return false; }
+    finally{ subRequests.delete(key); renderSubs(); }
+  })();
+  subRequests.set(key,work); renderSubs(); return work;
+}
+function refreshServerList(){ return refreshSubscription(); }
+async function reconnect(useCache=false){
+  const generation=subGeneration;
+  await Vpn.stop();
+  for(let i=0;i<27&&connected;i++) await sleep(300);
+  suppressProxies=false;
+  if(generation!==subGeneration||!activeSub()) return;
+  if(connected) throw Error('Не удалось переподключиться — нажми «Подключить»');
+  await toggleConnect(useCache);
+  if(useCache) _tunnelRefreshed=true; // Не скачиваем второй раз сразу после ручного обновления.
 }
 function delSub(id, ev){
   if(ev&&ev.stopPropagation) ev.stopPropagation();
   const list=subs().filter(s=>s.id!==id);
   saveSubs(list);
   if(activeSubId()===id){ if(list.length) setActiveSub(list[0].id); else { localStorage.removeItem('mise_subActive'); localStorage.removeItem('mise_subUrl'); } }
-  haptic('warning'); renderSubs(); toast('Подписка удалена');
+  ++subGeneration;
+  if(!list.length&&connected) Vpn.stop().catch(()=>{});
+  _proxies=null; _mainSel=null; _providerNodes=null;
+  syncOnboarding(); haptic('warning'); renderSubs(); renderServerSheet(); updateCoverMeta(); toast('Подписка удалена');
 }
 
 // ---------- User-Agent запроса подписки ----------
@@ -969,8 +1078,8 @@ function setUserAgent(ua, sub){
   const v=(ua||'').trim();
   if(v && v!==UA_DEFAULT) a.ua=v; else delete a.ua;
   saveSubs(l);
-  // формат подписки мог смениться вместе с UA — кэш серверов больше не про неё
-  localStorage.removeItem('mise_lastServers:'+a.id); localStorage.removeItem('mise_mainServers:'+a.id);
+  // Старую рабочую копию сохраняем до успешного ответа нового UA.
+  ++subGeneration;
 }
 function uaLabel(ua){ const p=UA_PRESETS.find(x=>x.ua===ua); return (p?p.t:ua).toUpperCase(); }
 // миграция: раньше UA был один на всех (mise_ua) — раздаём его подпискам без своего
@@ -998,10 +1107,8 @@ let connected=false, sessStart=0, sessTimer=null;
 const delays={}; // имя ноды -> пинг
 let _tunnelRefreshed=false;
 async function refreshViaTunnel(){
-  const sub=activeSub(); if(!sub||!Vpn||!Vpn.fetchSub||_tunnelRefreshed) return; _tunnelRefreshed=true;
-  try{ const r=await Vpn.fetchSub({url:sub.url, hwid:getHwid(), userAgent:getUserAgent(sub), fallbacks:subFallbacks(sub), viaProxy:true});
-    if(r&&r.status>=200&&r.status<300&&!r.cached){ const l=subs(); const a=l.find(x=>x.id===sub.id); if(a){ if(r.title) a.title=r.title; a.userinfo=parseUserinfo(r.userinfo||''); a.metaAt=Date.now(); if(r.fallbacks) a.fallbacks=String(r.fallbacks).split('\n').map(x=>x.trim()).filter(Boolean); saveSubs(l); renderSubs(); updateCoverMeta(); } }
-  }catch{}
+  if(!connected||_tunnelRefreshed) return; _tunnelRefreshed=true;
+  return refreshSubscription(false,true);
 }
 function setUiConnected(on){
   if(!on){ _mainSel=null; _providerNodes=null; _tunnelRefreshed=false; }
@@ -1052,7 +1159,8 @@ function applyWallpaper(){ const d=localStorage.getItem('mise_wallpaper'); for(c
 applyWallpaper();
 document.querySelector('.app')?.classList.add('tab-home');
 
-async function toggleConnect(){
+async function toggleConnect(useCache=false){
+  if(onboardingOpen()) return;
   haptic('medium');
   dbg('тап connect | native='+isNative+' plugin='+(!!Vpn)+' hasStart='+(!!(Vpn&&Vpn.start)));
   if(!isNative || !Vpn){ dbg('НЕ нативно → демо-режим (плагин недоступен!)'); setUiConnected(!connected); return; }
@@ -1069,7 +1177,7 @@ async function toggleConnect(){
   dbg('split='+sm+' apps='+sApps.length);
   const chainList = chains();
   dbg('цепочек='+chainList.length);
-  try{ const r=await Vpn.start({ subUrl: sub, hwid: getHwid(), userAgent: getUserAgent(), splitMode: sm, splitApps: sApps, chains: chainList, warp: chainUsesWarp()?warpCreds():'', fallbacks: subFallbacks(activeSub()) }); dbg('start() вернул: '+JSON.stringify(r||{})); }
+  try{ const r=await Vpn.start({ useCache:useCache===true, subUrl: sub, hwid: getHwid(), userAgent: getUserAgent(), splitMode: sm, splitApps: sApps, chains: chainList, warp: chainUsesWarp()?warpCreds():'', fallbacks: subFallbacks(activeSub()) }); dbg('start() вернул: '+JSON.stringify(r||{})); }
   catch(e){ setStatusText('○ ОТКЛЮЧЕНО'); dbg('start() REJECT: '+(e&&e.message?e.message:e)); toast('Ошибка старта: '+(e&&e.message?e.message:e)); }
 }
 
@@ -1230,29 +1338,10 @@ function renderPreviewServers(names){
     }).join('');
 }
 async function previewServers(){
-  const sub=getSubUrl(); const reqId=activeSubId();
-  const subEl=document.getElementById('servers-sub'), list=document.getElementById('server-list');
-  if(!sub){ subEl.textContent='НЕТ ПОДПИСКИ'; list.innerHTML='<div class="list-note">Добавьте подписку на вкладке «Подписки».</div>'; return; }
-  if(!Vpn || !Vpn.fetchSub){ renderCachedServers(); return; }
-  subEl.textContent='ЗАГРУЗКА…'; list.innerHTML='<div class="list-note">Загружаю список серверов из подписки…</div>';
-  const r=await Vpn.fetchSub({url:sub, hwid:getHwid(), userAgent:getUserAgent(), fallbacks:subFallbacks(activeSub())});
-  if(activeSubId()!==reqId) return;
-  if(!r || r.status<200 || r.status>=300 || !r.body){ dbg('fetchSub status='+(r&&r.status)+' err='+((r&&r.error)||'')); renderCachedServers(); return; }
-  // fetchSub отдаёт уже сконвертированный mihomo-YAML, каким бы ни был формат панели
-  if(r.format){ dbg('формат подписки: '+r.format+' узлов='+(r.proxies||0)+' групп='+(r.groups||0)); localStorage.setItem('mise_subFormat', r.formatLabel||r.format); }
-  if(r.notes) dbg('конвертер: '+String(r.notes).replace(/\n/g,' | '));
-  if(r.error) dbg('fetchSub: '+r.error);
-  if(r.title){ const l=subs(); const a=l.find(x=>x.id===reqId); if(a&&a.title!==r.title){ a.title=r.title; saveSubs(l); updateCoverMeta(); } }
-  // Для сконвертированных форматов имена приходят от самого конвертера: он уже знает,
-  // что узлы балансировщика предлагаются через группу, а не по отдельности.
-  // Для сквозного mihomo-конфига их всё ещё приходится вытаскивать из YAML.
-  const names=(r.names && r.names.length) ? r.names : parseSubNames(r.body);
-  dbg('превью: '+names.length+' серверов из подписки');
-  if(!names.length){ subEl.textContent='—'; list.innerHTML='<div class="list-note">Не удалось разобрать список. '+esc(r.error||'Формат подписки не распознан.')+'</div>'; return; }
-  localStorage.setItem(ck('mise_lastServers'), JSON.stringify({all:names, now:getPreferred()}));
-  { const sh=safeJson(r.sheet||''); if(sh&&Array.isArray(sh.members)&&sh.members.length) localStorage.setItem(ck('mise_mainServers'), JSON.stringify({all:sh.members, now:'', auto:sh.auto||'', groups:sh.groups||{}})); }
-  renderSubs();
-  renderPreviewServers(names); renderServerSheet();
+  const id=activeSubId(), generation=subGeneration;
+  await refreshSubscription();
+  if(id!==activeSubId()||generation!==subGeneration) return;
+  renderCachedServers(); renderServerSheet();
 }
 // после коннекта ждём, пока ядро скачает подписку и поднимет API
 async function waitForServers(){
@@ -1317,7 +1406,7 @@ async function sheetPick(group, name){ haptic('tick'); await selectNode(group, n
 
 async function selectNode(group, name){
   const r=await core('PUT','/proxies/'+encodeURIComponent(group),{name});
-  if(r.ok){ toast(cleanName(name)); loadProxies(); }
+  if(r.ok){ localStorage.setItem('mise_preferred',name); toast(cleanName(name)); loadProxies(); }
   else toast('Не удалось выбрать (для авто-групп выбор недоступен)');
 }
 async function pingAll(){
@@ -1379,7 +1468,7 @@ function saveUaModal(){
     renderSubs();
     toast('User-Agent: '+now);
     // формат ответа панели меняется вместе с UA — перечитываем подписку
-    if(s.id===activeSubId()){ localStorage.removeItem('mise_subFormat'); _proxies=null; _mainSel=null; _providerNodes=null; renderServerSheet(); fetchSubMeta(activeSub()); refreshServerList(); if(connected){ suppressProxies=true; reconnect(); } }
+    if(s.id===activeSubId()) refreshSubscription(true);
   }
 }
 function renderSubs(){
@@ -1401,6 +1490,9 @@ function renderSubs(){
       `<span class="chev" onclick="delSub('${q(s.id)}',event)">✕</span></div>`;
   }).join('');
   const a=list.find(x=>x.id===act)||list[0];
+  const busy=a&&subRequests.has(a.id+'|'+getUserAgent(a)+'|'+subGeneration);
+  if(a) html+=`<div class="sub-actions"><button class="sub-btn primary" onclick="refreshSubscription(true)" ${busy?'disabled':''}>${busy?'Обновляю…':'Обновить подписку'}</button></div>`;
+  const error=localStorage.getItem(ck('mise_subErr')); if(error) html+=`<div class="list-note" role="status">${esc(error)} · Используется сохранённая копия</div>`;
   if(a&&(a.webPage||a.supportUrl)) html+=`<div class="sub-actions">${a.webPage?`<button class="sub-btn primary" onclick="openExternal('${q(a.webPage)}')">Продлить</button>`:''}${a.supportUrl?`<button class="sub-btn" onclick="openExternal('${q(a.supportUrl)}')">Поддержка</button>`:''}</div>`;
   if(a&&a.announce) html+=`<div class="list-note sub-announce">${esc(a.announce)}</div>`;
   box.innerHTML=html;
@@ -1631,22 +1723,49 @@ async function resolveDnsTxt(domain){
 }
 
 async function saveSubModal(){
-  const raw=document.getElementById('sub-input').value.trim();
-  if(!raw){ toast('Введите значение'); return; }
-  let url=raw;
-  if(subMode==='dns'){
-    toast('Получаю конфиг через DNS…');
-    const txt=await resolveDnsTxt(raw);
-    if(!txt){ toast('DNS TXT не найден для '+raw); return; }
-    url=txt;
-  }
-  const list=subs();
-  const dup=list.find(s=>s.url===url);
-  if(dup){ setActiveSub(dup.id); closeSubModal(); renderSubs(); haptic('tick'); toast('Уже добавлена — сделал активной'); go('home'); return; }
-  const item={id:'s'+Date.now(), name:subName(url), url};
-  list.push(item); saveSubs(list); setActiveSub(item.id); fetchSubMeta(item); refreshServerList();
-  closeSubModal(); renderSubs(); haptic('success'); toast('Подписка добавлена'); go('home'); setTimeout(openServerSheet, 450);
+  if(addingSub) return; addingSub=true;
+  try{
+    let url=document.getElementById('sub-input').value.trim();
+    if(subMode==='dns') url=await resolveDnsTxt(url);
+    await addValidatedSub(url);
+    closeSubModal(); syncOnboarding(); renderSubs(); haptic('success'); toast('Подписка добавлена'); go('home');
+  }catch(e){ toast(e.message||String(e)); }
+  finally{ addingSub=false; }
 }
+
+let addingSub=false;
+function onboardingOpen(){ return !document.getElementById('onboarding').classList.contains('hidden'); }
+function syncOnboarding(){
+  // Ошибка чтения хранилища — не пустой список. Не скрываем существующие профили.
+  let list; try{ const raw=localStorage.getItem('mise_subs'); list=raw?JSON.parse(raw):[]; if(!Array.isArray(list)) return; }catch{ return; }
+  const open=!list.length&&!localStorage.getItem('mise_subUrl');
+  document.getElementById('onboarding').classList.toggle('hidden',!open);
+  document.body.classList.toggle('onboarding',open); document.querySelector('.app').inert=open;
+  if(open){ cancelGesture(); for(const n of Object.keys(PANELS)) closePanel(n,false); showView('home',false); }
+}
+async function pasteOnboarding(){
+  try{ document.getElementById('onboarding-url').value=(await navigator.clipboard.readText()).trim(); }
+  catch{ document.getElementById('onboarding-error').textContent='Не удалось прочитать буфер — вставь ссылку вручную'; }
+}
+async function addValidatedSub(url){
+  if(!/^https?:\/\//i.test(url)) throw Error('Нужна ссылка вида https://…');
+  if(!Vpn?.fetchSub) throw Error('Проверка доступна в Android-приложении');
+  const existing=subs().find(s=>s.url===url); if(existing){ setActiveSub(existing.id); return; }
+  const r=await Vpn.fetchSub({url,hwid:getHwid(),userAgent:UA_DEFAULT,fallbacks:[],allowCache:false});
+  if(!validSubResponse(r)||r.cached) throw Error(r?.error||'Это не конфиг подписки');
+  await Vpn.saveSubCache({url,body:r.body});
+  const item={id:crypto.randomUUID(),name:subName(url),url};
+  const list=subs(); list.push(item); saveSubs(list); setActiveSub(item.id); applySubResponse(item,r);
+}
+async function submitOnboarding(){
+  if(addingSub) return; addingSub=true;
+  const button=document.getElementById('onboarding-submit'), err=document.getElementById('onboarding-error');
+  button.disabled=true; button.textContent='Проверяю…'; err.textContent='';
+  try{ await addValidatedSub(document.getElementById('onboarding-url').value.trim()); document.activeElement?.blur(); syncOnboarding(); renderSubs(); }
+  catch(e){ err.textContent=e.message||String(e); }
+  finally{ addingSub=false; button.disabled=false; button.textContent='Добавить'; }
+}
+syncOnboarding();
 
 // ---------- трафик (реальный, из API ядра) ----------
 function fmtBytes(b){ b=Math.max(0,Number(b)||0); if(b<1024) return Math.round(b)+' Б'; const u=['КБ','МБ','ГБ','ТБ']; let i=-1; do{ b/=1024; i++; }while(b>=1024&&i<u.length-1); return b.toFixed(b<10?1:0)+' '+u[i]; }
@@ -1694,23 +1813,7 @@ initAutostart();
 renderSubs();
 setUiConnected(false);
 // заголовки панели (title/logo/оплата/поддержка/трафик) — на старте, при добавлении и переключении
-async function fetchSubMeta(sub){
-  if(!sub||!sub.url||!Vpn||!Vpn.fetchSub) return;
-  try{ const r=await Vpn.fetchSub({url:sub.url, hwid:getHwid(), userAgent:getUserAgent(sub), fallbacks:subFallbacks(sub)});
-    if(!r||r.status<200||r.status>=300) return;
-    if(r.cached) return;
-    const l=subs(); const a=l.find(x=>x.id===sub.id); if(!a) return;
-    a.title=r.title||''; a.logo=r.logo||''; a.webPage=r.webPage||''; a.supportUrl=r.supportUrl||''; a.announce=r.announce||'';
-    a.userinfo=parseUserinfo(r.userinfo||''); a.metaAt=Date.now();
-    a.fallbacks=String(r.fallbacks||'').split('\n').map(x=>x.trim()).filter(Boolean);
-    const ne=String(r.notifExpire||'').trim().toLowerCase(); const neOn=!!ne&&!/^(0|false|no|off)$/.test(ne); const neDays=/^\d+$/.test(ne)?Math.min(30,Math.max(1,parseInt(ne,10))):3;
-    a.flags={notif:neOn, notifDays:neDays, pingType:String(r.pingType||'').toLowerCase(), checkUrl:r.checkUrl||'', pingResult:String(r.pingResult||'').toLowerCase(), updateOnOpen:/^(1|true|yes|on)$/i.test(r.updateOnOpen||'')};
-    if(r.nodes){ const nm=safeJson(r.nodes); if(nm) a.nodes=nm; }
-    if(r.usedUrl&&r.usedUrl!==a.url) toast('Подписка через запасной адрес');
-    scheduleReminder(a);
-    saveSubs(l); renderSubs(); updateCoverMeta();
-  }catch{}
-}
+function fetchSubMeta(sub){ if(sub?.id===activeSubId()) return refreshSubscription(); }
 function subFlags(){ const a=activeSub(); return (a&&a.flags)||{}; }
 function subFallbacks(sub){ return (sub&&Array.isArray(sub.fallbacks))?sub.fallbacks:[]; }
 // напоминание об окончании (notification-subs-expire) — только для активной подписки

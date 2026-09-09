@@ -71,7 +71,8 @@ class MihomoVpnService : VpnService() {
                 // Уведомление обязано появиться сразу после startForegroundService,
                 // поэтому показываем его на главном потоке, а запуск ядра уводим в фон.
                 startForegroundNotif()
-                worker.execute { startTunnel(subUrl, hwid, userAgent, splitMode, splitApps, rules, chains, warp, serviceGroups, fallbacks) }
+                val useCache = intent?.getBooleanExtra("useValidatedCache", false) ?: false
+                worker.execute { startTunnel(subUrl, hwid, userAgent, splitMode, splitApps, rules, chains, warp, serviceGroups, fallbacks, useCache) }
             }
         }
         // не START_STICKY: иначе система переподнимет сервис с пустым intent и без подписки
@@ -89,13 +90,16 @@ class MihomoVpnService : VpnService() {
         warp: String,
         serviceGroups: Array<String>,
         fallbacks: Array<String> = arrayOf(),
+        useCache: Boolean = false,
     ) {
         if (running) return
         try {
             // Классика: сперва тянем конфиг подписки (со всеми селекторами автора). Если не
             // удалось — не поднимаем TUN, иначе интернет пропадёт при мёртвом туннеле.
             // панели даём 5 с на всё (с запасными адресами), дальше молча поднимаемся по копии
-            var fetched = Subscription.fetchAny(subUrl, hwid, userAgent, fallbacks.toList(), 0, 5000L)
+            // Ручное обновление уже скачало и проверило копию: повторный запрос не нужен.
+            var fetched = if (useCache) Subscription.Fetched(200, Subscription.loadCache(this, subUrl), null)
+                else Subscription.fetchAny(subUrl, hwid, userAgent, fallbacks.toList(), 0, 5000L)
             if (fetched.status in 200..299 && fetched.body.isNotBlank()) {
                 Subscription.saveCache(this, subUrl, fetched.body)
             } else {

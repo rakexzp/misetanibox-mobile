@@ -18,6 +18,7 @@ import com.getcapacitor.annotation.CapacitorPlugin
 @CapacitorPlugin(name = "Vpn")
 class VpnPlugin : Plugin() {
 
+    private var pendingUseCache = false
     private var pendingSubUrl = ""
     private var pendingHwid = ""
     private var pendingUserAgent = Subscription.DEFAULT_USER_AGENT
@@ -54,6 +55,7 @@ class VpnPlugin : Plugin() {
 
     @PluginMethod
     fun start(call: PluginCall) {
+        pendingUseCache = call.getBoolean("useCache", false) ?: false
         pendingSubUrl = call.getString("subUrl") ?: ""
         pendingHwid = call.getString("hwid") ?: ""
         pendingUserAgent = Subscription.userAgentOr(call.getString("userAgent"))
@@ -115,6 +117,7 @@ class VpnPlugin : Plugin() {
         )
         val i = Intent(context, MihomoVpnService::class.java)
         i.action = MihomoVpnService.ACTION_START
+        i.putExtra("useValidatedCache", pendingUseCache)
         i.putExtra(MihomoVpnService.EXTRA_SUB_URL, pendingSubUrl)
         i.putExtra(MihomoVpnService.EXTRA_HWID, pendingHwid)
         i.putExtra(MihomoVpnService.EXTRA_USER_AGENT, pendingUserAgent)
@@ -217,7 +220,7 @@ class VpnPlugin : Plugin() {
             } else {
                 android.os.VibrationEffect.createOneShot(if (kind == "heavy") 30 else 10, android.os.VibrationEffect.DEFAULT_AMPLITUDE)
             }
-            if (Build.VERSION.SDK_INT >= 30) {
+            if (Build.VERSION.SDK_INT >= 33) {
                 val attrs = android.os.VibrationAttributes.Builder().setUsage(android.os.VibrationAttributes.USAGE_PHYSICAL_EMULATION).build()
                 vib.vibrate(effect, attrs)
             } else {
@@ -370,11 +373,9 @@ class VpnPlugin : Plugin() {
         Thread {
             val ret = JSObject()
             var fetched = Subscription.fetchAny(url, hwid, userAgent, fbs, if (viaProxy) coreMixedPort() else 0)
-            if (fetched.status in 200..299 && fetched.body.isNotBlank()) {
-                Subscription.saveCache(context, url, fetched.body)
-            } else {
+            if (fetched.status !in 200..299 && call.getBoolean("allowCache", true) == true) {
                 val cached = Subscription.loadCache(context, url)
-                if (cached.isNotBlank()) { fetched = Subscription.Fetched(200, cached, null); ret.put("cached", true) }
+                if (cached.isNotBlank()) { fetched = Subscription.Fetched(200, cached, fetched.error); ret.put("cached", true) }
             }
             ret.put("status", fetched.status)
             ret.put("title", fetched.title)
@@ -399,13 +400,21 @@ class VpnPlugin : Plugin() {
                 for (n in converted.names) names.put(n)
                 ret.put("names", names)
             } catch (e: Exception) {
-                // Формат не разобрался — отдаём тело как есть, чтобы превью могло
-                // хотя бы попробовать вытащить имена, и говорим почему.
-                ret.put("body", fetched.body)
+                ret.put("status", 422)
+                ret.put("body", "")
                 ret.put("error", e.message ?: "формат подписки не распознан")
             }
             call.resolve(ret)
         }.start()
+    }
+
+    // UI фиксирует проверенный ответ только после проверки актуальности id/UA запроса.
+    @PluginMethod
+    fun saveSubCache(call: PluginCall) {
+        try {
+            Subscription.saveCache(context, call.getString("url") ?: "", call.getString("body") ?: "")
+            call.resolve()
+        } catch (e: Exception) { call.reject(e.message ?: "не удалось сохранить подписку") }
     }
 
     // Прокси к API ядра mihomo (external-controller) через нативный HTTP,
