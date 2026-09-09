@@ -26,6 +26,48 @@ test('transition replacement removes old listeners and only runs current complet
 function refreshEnv(){const e=env();e.run(section('function subs(){','function switchSub')+section('const subRequests=','async function reconnect'));
  e.run("saveSubs([{id:'a',url:'https://a',ua:'custom',fallbacks:['https://b']}]);setActiveSub('a');var calls=0,saves=0;Vpn.saveSubCache=async()=>{saves++};Vpn.fetchSub=opts=>{calls++;globalThis.opts=opts;return new Promise(r=>globalThis.resolveFetch=r)}");return e;}
 const good={status:200,body:'proxies: []',format:'mihomo',names:['keep'],title:'fresh',sheet:'{"members":["keep"]}'};
+function multiRefreshEnv(){
+ const e=refreshEnv();e.run("saveSubs([...subs(),{id:'b',name:'B',url:'https://other',ua:'other-UA'}]);connected=true;var stops=0,homeUpdates=0;Vpn.stop=async()=>{stops++};renderServerSheet=updateCoverMeta=()=>{homeUpdates++}");
+ e.run(section('async function reconnect(', 'function delSub('));
+ e.run("var pending=new Map(),saved=[];Vpn.fetchSub=opts=>{calls++;return new Promise(r=>pending.set(opts.url,{opts,resolve:r}))};Vpn.saveSubCache=async opts=>{saved.push(opts);saves++}");
+ e.store.set('mise_preferred','active-choice');e.store.set('mise_subFormat','active-format');e.store.set('mise_mainServers:a','active-main');e.store.set('mise_lastServers:a','active-last');e.store.set('mise_subErr:a','active-error');
+ e.run(section('function renderSubs(){','// ---------- режим маршрутизации'));
+ Object.assign(e.ctx,{esc:String,q:String,fmtBytes:String,subExpiryText:()=>'',uaLabel:String});
+ return e;
+}
+function refreshButtons(e){e.run('renderSubs()');return [...e.node('subs-list').innerHTML.matchAll(/<button\b[^>]*class="sub-refresh[^>]*>/g)].map(m=>m[0]);}
+test('inactive refresh isolates cache, selection, metadata and connected VPN',async()=>{
+ const e=multiRefreshEnv(),before=new Map(e.store),p=e.run("refreshSubscription(true,false,'b')");
+ const request=e.run("pending.get('https://other')");assert.ok(request);assert.equal(request.opts.userAgent,'other-UA');
+ request.resolve({...good,names:['other'],sheet:'{"members":["other"]}'});assert.equal(await p,true);
+ for(const key of ['mise_subActive','mise_subUrl','mise_preferred','mise_subFormat','mise_mainServers:a','mise_lastServers:a','mise_subErr:a'])assert.equal(e.store.get(key),before.get(key),key);
+ assert.equal(e.run('stops'),0);assert.equal(e.run('homeUpdates'),0);assert.equal(e.run('connected'),true);
+ assert.equal(e.run('activeSub().title'),undefined);assert.equal(e.run("subs().find(s=>s.id==='b').title"),'fresh');
+ assert.deepEqual(JSON.parse(e.store.get('mise_mainServers:b')).all,['other']);assert.equal(JSON.parse(e.store.get('mise_mainServers:b')).now,null);
+ assert.equal(e.run('saved[0].url'),'https://other');
+});
+test('each row refresh stops propagation and has independent busy state',async()=>{
+ const e=multiRefreshEnv();let buttons=refreshButtons(e);assert.equal(buttons.length,2);
+ let stopped=0;e.ctx.event={stopPropagation(){stopped++}};
+ const p=e.run(buttons[1].match(/onclick="([^"]*)"/)[1]);assert.equal(stopped,1);assert.equal(e.run('activeSubId()'),'a');
+ buttons=refreshButtons(e);assert.doesNotMatch(buttons[0],/disabled/);assert.match(buttons[1],/disabled/);
+ const q=e.run("refreshSubscription(true,false,'a')"),duplicate=e.run("refreshSubscription(true,false,'b')");assert.equal(e.run('calls'),2);
+ assert.ok(refreshButtons(e).every(b=>b.includes('disabled')));
+ e.run("pending.get('https://other')").resolve(good);
+ // Finish the inactive request first; the active row must remain busy.
+ await p;await duplicate;buttons=refreshButtons(e);assert.match(buttons[0],/disabled/);assert.doesNotMatch(buttons[1],/disabled/);
+ e.run("pending.get('https://a').resolve({status:0,error:'offline'})");await q;assert.ok(refreshButtons(e).every(b=>!b.includes('disabled')));
+});
+for(const change of ["saveSubs(subs().filter(s=>s.id!=='b'));++subGeneration","const changed=subs();changed[1].ua='changed';saveSubs(changed)","setActiveSub('b')"]){
+ test('inactive stale response cannot apply after '+change,async()=>{
+  const e=multiRefreshEnv(),p=e.run("refreshSubscription(true,false,'b')"),request=e.run("pending.get('https://other')");assert.ok(request);
+  e.run(change);request.resolve(good);assert.equal(await p,false);assert.equal(e.run('saves'),0);assert.equal(e.run('stops'),0);assert.equal(e.store.has('mise_mainServers:b'),false);
+ });
+}
+test('inactive refresh failure writes only its own error and retains caches',async()=>{
+ const e=multiRefreshEnv();e.store.set('mise_mainServers:b','old-b');const p=e.run("refreshSubscription(true,false,'b')");const request=e.run("pending.get('https://other')");assert.ok(request);
+ request.resolve({status:0,error:'offline'});assert.equal(await p,false);assert.equal(e.store.get('mise_subErr:b'),'offline');assert.equal(e.store.get('mise_subErr:a'),'active-error');assert.equal(e.store.get('mise_mainServers:b'),'old-b');assert.equal(e.run('stops'),0);
+});
 test('refresh coalesces double tap, preserves selection and sends UA/HWID/fallbacks',async()=>{
  const e=refreshEnv();e.store.set('mise_preferred','keep');const p=e.run('refreshSubscription(true)');const q=e.run('refreshSubscription(true)');assert.equal(e.run('calls'),1);assert.equal(e.run('opts.userAgent'),'custom');assert.equal(e.run('opts.hwid'),'hwid');e.ctx.resolveFetch(good);assert.equal(await p,true);await q;assert.equal(e.run('saves'),1);assert.equal(e.store.get('mise_preferred'),'keep');assert.equal(e.run('activeSub().title'),'fresh');
 });

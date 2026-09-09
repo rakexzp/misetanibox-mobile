@@ -19,6 +19,8 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(VpnPlugin.class);
         super.onCreate(savedInstanceState);
+        // Capacitor показывает no_webview при недоступном системном WebView.
+        if (getBridge() == null || getBridge().getWebView() == null) return;
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 41);
         }
@@ -53,7 +55,7 @@ public class MainActivity extends BridgeActivity {
     // системная «назад»: страницу/лист закрывает JS; 'exit' — сворачиваем
     @Override
     public void onBackPressed() {
-        WebView wv = getBridge().getWebView();
+        WebView wv = getBridge() == null ? null : getBridge().getWebView();
         if (wv == null) { super.onBackPressed(); return; }
         wv.evaluateJavascript("(typeof navBack==='function')?navBack():'exit'", v -> {
             if (v == null || v.contains("exit")) moveTaskToBack(true);

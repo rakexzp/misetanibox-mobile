@@ -921,7 +921,7 @@ function sheetDrag(overlay){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'v0.21.13';
+const BUILD = 'v0.21.14';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
@@ -983,7 +983,7 @@ function setActiveSub(id){
   // список серверов/формат относятся к прошлой подписке
   localStorage.removeItem('mise_preferred'); localStorage.removeItem('mise_subFormat');
 }
-function ck(base){ return base+':'+(activeSubId()||'_'); }
+function ck(base,id=activeSubId()){ return base+':'+(id||'_'); }
 function getSubUrl(){ const s=activeSub(); return s ? s.url : (localStorage.getItem('mise_subUrl')||''); }
 function switchSub(id){
   if(id===activeSubId()) return;
@@ -1013,18 +1013,20 @@ function applySubResponse(sub,r){
   saveSubs(l);
   const sh=safeJson(r.sheet||''), names=(r.names&&r.names.length)?r.names:parseSubNames(r.body);
   const all=sh&&Array.isArray(sh.members)&&sh.members.length?sh.members:names;
-  const pref=getPreferred(); if(pref&&!all.includes(pref)) localStorage.removeItem('mise_preferred');
-  localStorage.setItem(ck('mise_lastServers'),JSON.stringify({all:names,now:getPreferred()}));
-  localStorage.setItem(ck('mise_mainServers'),JSON.stringify({all,now:getPreferred(),auto:sh?.auto||'',groups:sh?.groups||{}}));
-  localStorage.setItem('mise_subFormat',r.formatLabel||r.format);
-  localStorage.removeItem(ck('mise_subErr')); scheduleReminder(a);
-  renderSubs(); renderServerSheet(); updateCoverMeta();
+  const on=sub.id===activeSubId();
+  const pref=on?getPreferred():null; if(pref&&!all.includes(pref)) localStorage.removeItem('mise_preferred');
+  const now=on?getPreferred():null;
+  localStorage.setItem(ck('mise_lastServers',sub.id),JSON.stringify({all:names,now}));
+  localStorage.setItem(ck('mise_mainServers',sub.id),JSON.stringify({all,now,auto:sh?.auto||'',groups:sh?.groups||{}}));
+  localStorage.removeItem(ck('mise_subErr',sub.id));
+  if(on){ localStorage.setItem('mise_subFormat',r.formatLabel||r.format); scheduleReminder(a); renderServerSheet(); updateCoverMeta(); }
+  renderSubs();
 }
-async function refreshSubscription(manual=false,viaProxy=false){
-  const sub=activeSub(); if(!sub||!Vpn?.fetchSub) return false;
-  const ua=getUserAgent(sub), generation=subGeneration, key=sub.id+'|'+ua+'|'+generation;
+async function refreshSubscription(manual=false,viaProxy=false,subId=activeSubId()){
+  const sub=subs().find(s=>s.id===subId); if(!sub||!Vpn?.fetchSub) return false;
+  const ua=getUserAgent(sub), generation=subGeneration, activeId=activeSubId(), key=sub.id+'|'+ua+'|'+generation;
   if(subRequests.has(key)) return subRequests.get(key);
-  const current=()=>subGeneration===generation&&activeSubId()===sub.id&&subs().some(s=>s.id===sub.id&&s.url===sub.url&&getUserAgent(s)===ua);
+  const current=()=>subGeneration===generation&&activeSubId()===activeId&&subs().some(s=>s.id===sub.id&&s.url===sub.url&&getUserAgent(s)===ua);
   const work=(async()=>{
     try{
       const r=await Vpn.fetchSub({url:sub.url,hwid:getHwid(),userAgent:ua,fallbacks:subFallbacks(sub),viaProxy,allowCache:!manual});
@@ -1033,12 +1035,12 @@ async function refreshSubscription(manual=false,viaProxy=false){
       if(!r.cached){ await Vpn.saveSubCache({url:sub.url,body:r.body}); if(!current()) return false; }
       applySubResponse(sub,r);
       if(manual){
-        if(connected){ suppressProxies=true; await reconnect(true); }
+        if(current()&&sub.id===activeSubId()&&connected){ suppressProxies=true; await reconnect(true); }
         if(!current()) return false;
         toast(r.usedUrl&&r.usedUrl!==sub.url?'Подписка обновлена через запасной адрес':'Подписка обновлена');
       }
       return true;
-    }catch(e){ if(current()){ localStorage.setItem(ck('mise_subErr'),e.message||String(e)); toast('Не удалось обновить: '+(e.message||e)+'. Рабочая копия сохранена'); } return false; }
+    }catch(e){ if(current()){ localStorage.setItem(ck('mise_subErr',sub.id),e.message||String(e)); toast('Не удалось обновить: '+(e.message||e)+'. Рабочая копия сохранена'); } return false; }
     finally{ subRequests.delete(key); renderSubs(); }
   })();
   subRequests.set(key,work); renderSubs(); return work;
@@ -1491,8 +1493,8 @@ function renderSubs(){
     const sub=parts.length?esc(parts.join(' · ')):esc(s.url.replace(/^https?:\/\//,'').slice(0,38));
     const ua=`<span class="sub-ua${s.ua?' set':''}" onclick="openUaModal('${q(s.id)}',event)">UA · ${esc(uaLabel(getUserAgent(s)))}</span>`;
     const logo=s.logo?`<img class="sub-logo" src="${esc(s.logo)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'sub-logo dot'}))">`:`<span class="sub-logo dot${on?' on':''}"></span>`;
-    const busy=on&&subRequests.has(s.id+'|'+getUserAgent(s)+'|'+subGeneration);
-    const refresh=on?`<button type="button" class="sub-refresh${busy?' busy':''}" aria-label="${busy?'Обновление подписки':'Обновить подписку'}" title="Обновить подписку" onclick="event.stopPropagation();refreshSubscription(true)" ${busy?'disabled':''}><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 7a7 7 0 0 1 11.6-1L20 9M4 15l2.3 3A7 7 0 0 0 17.9 17"/></svg></button>`:'';
+    const busy=subRequests.has(s.id+'|'+getUserAgent(s)+'|'+subGeneration);
+    const refresh=`<button type="button" class="sub-refresh${busy?' busy':''}" aria-label="${busy?'Обновление подписки':'Обновить подписку'}" title="Обновить подписку" onclick="event.stopPropagation();refreshSubscription(true,false,'${q(s.id)}')" ${busy?'disabled':''}><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 7a7 7 0 0 1 11.6-1L20 9M4 15l2.3 3A7 7 0 0 0 17.9 17"/></svg></button>`;
     return `<div class="row${on?' sub-on':''}" onclick="switchSub('${q(s.id)}')">${logo}`+
       `<div class="grow"><div class="t">${esc(s.title||s.name)}</div><div class="s">${sub}</div>${ua}</div>`+
       refresh+`<span class="chev" onclick="delSub('${q(s.id)}',event)">✕</span></div>`;

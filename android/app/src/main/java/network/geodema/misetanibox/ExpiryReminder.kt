@@ -30,7 +30,11 @@ object ExpiryReminder {
         for (d in days downTo 1) {
             val c = Calendar.getInstance().apply { timeInMillis = (expire - d * 86400L) * 1000L; set(Calendar.HOUR_OF_DAY, 11); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0) }
             if (c.timeInMillis <= now) continue
-            am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, c.timeInMillis, pending(ctx, d))
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, c.timeInMillis, pending(ctx, d))
+            } else {
+                am.set(AlarmManager.RTC_WAKEUP, c.timeInMillis, pending(ctx, d))
+            }
         }
     }
 

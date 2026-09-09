@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "postinstall": "node scripts/patch-capacitor.cjs",
+    "test": "node --test tests/*.cjs",
     "cap:add": "cap add android",
     "cap:sync": "cap sync android"
   },

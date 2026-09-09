@@ -36,7 +36,7 @@ Android-клиент на ядре [mihomo](https://github.com/MetaCubeX/mihomo)
 
 ## Сборка
 
-CI (`.github/workflows/android.yml`) на тег `vX.Y.Z` собирает подписанный APK. Ядро — gomobile-биндинг mihomo из `core/`, обязательные теги `-tags with_gvisor,cmfa`. Интерфейс — один файл `www/index.html` (Capacitor), нативная часть — `android/app/src/main/java/network/geodema/misetanibox/`.
+CI (`.github/workflows/android.yml`) на тег `vX.Y.Z` запускает `npm test`, тесты Go и собирает подписанный APK. `npm install` применяет небольшой идемпотентный патч `scripts/patch-capacitor.cjs`: в Capacitor 6 резервный экран без WebView оставляет `bridge == null`, поэтому три lifecycle-вызова требуют защиты; вызовы Android superclass сохраняются. Ядро — gomobile-биндинг mihomo из `core/`, обязательные теги `-tags with_gvisor,cmfa`. Интерфейс — один файл `www/index.html` (Capacitor), нативная часть — `android/app/src/main/java/network/geodema/misetanibox/`.
 
 Версия задаётся в трёх местах: `const BUILD` в `www/index.html`, `versionCode`/`versionName` в `android/app/build.gradle`, git-тег.
 

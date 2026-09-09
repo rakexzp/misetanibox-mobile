@@ -128,7 +128,7 @@ class VpnPlugin : Plugin() {
         i.putExtra(MihomoVpnService.EXTRA_WARP, pendingWarp)
         i.putExtra(MihomoVpnService.EXTRA_FALLBACKS, pendingFallbacks)
         i.putExtra(MihomoVpnService.EXTRA_SERVICE_GROUPS, pendingServiceGroups)
-        context.startForegroundService(i)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(i) else context.startService(i)
     }
 
     // Регистрация WARP-устройства в Cloudflare (один раз); ключи — из ядра, HTTP — здесь,
@@ -203,9 +203,16 @@ class VpnPlugin : Plugin() {
         try {
             val kind = call.getString("kind") ?: "tick"
             val vib = if (Build.VERSION.SDK_INT >= 31) {
-                (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager).defaultVibrator
+                (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? android.os.VibratorManager)?.defaultVibrator
             } else {
-                @Suppress("DEPRECATION") context.getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator
+                @Suppress("DEPRECATION") context.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+            }
+            if (vib == null || !vib.hasVibrator()) { call.resolve(); return }
+            if (Build.VERSION.SDK_INT < 26) {
+                @Suppress("DEPRECATION")
+                vib.vibrate(if (kind == "heavy") 30L else 10L)
+                call.resolve()
+                return
             }
             val effect = if (Build.VERSION.SDK_INT >= 29) {
                 when (kind) {
@@ -226,7 +233,11 @@ class VpnPlugin : Plugin() {
             } else {
                 vib.vibrate(effect)
             }
-        } catch (_: Exception) {}
+        } catch (_: RuntimeException) {
+            // Необязательный отклик не должен прерывать действие при сбое OEM vibrator.
+        } catch (_: LinkageError) {
+            // Некоторые прошивки предоставляют неполную реализацию haptic API.
+        }
         call.resolve()
     }
 

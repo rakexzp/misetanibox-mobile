@@ -97,6 +97,7 @@ jobs:
         working-directory: .
         run: |
           npm install
+          npm test
           cp node_modules/@capacitor/core/dist/capacitor.js www/capacitor.js
           npx cap sync android
 
