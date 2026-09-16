@@ -933,7 +933,7 @@ function sheetDrag(overlay){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'v0.21.15';
+const BUILD = 'v0.21.16';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
@@ -1130,24 +1130,30 @@ async function refreshViaTunnel(){
   if(!connected||_tunnelRefreshed) return; _tunnelRefreshed=true;
   return refreshSubscription(false,true);
 }
-function setUiConnected(on){
+function setUiConnected(on, fresh=true, elapsedMs=0){
+  const wasConnected=connected;
   if(!on){ _mainSel=null; _providerNodes=null; _tunnelRefreshed=false; }
-  else setTimeout(refreshViaTunnel, 4000);
   connected=on;
   setFace(on);
   const big=document.getElementById('connect-big');
   const sv=document.getElementById('status-val');
   if(on){
     big.textContent='ОТКЛЮЧИТЬ'; sv.textContent='● ПОДКЛЮЧЕНО'; setHomeState('on');
-    if(!sessTimer){ sessStart=Date.now(); sessTimer=setInterval(tickSession,1000); tickSession(); }
+    if(!wasConnected || !sessStart) sessStart=Date.now()-Math.max(0,Number(elapsedMs)||0);
+    if(document.hidden) return;
+    if(!sessTimer){ sessTimer=setInterval(tickSession,1000); tickSession(); }
     startTraffic();
-    document.getElementById('servers-sub').textContent='ЗАГРУЗКА';
-    setServersNote('Ядро скачивает подписку…');
-    waitForServers();
-    setTimeout(applyModeToCore, 2500);
+    if(fresh && !wasConnected){
+      const generation=vpnGeneration;
+      setTimeout(()=>{ if(!document.hidden && connected && generation===vpnGeneration) refreshViaTunnel(); },4000);
+      document.getElementById('servers-sub').textContent='ЗАГРУЗКА';
+      setServersNote('Ядро скачивает подписку…');
+      waitForServers();
+      setTimeout(()=>{ if(!document.hidden && connected && generation===vpnGeneration) applyModeToCore(); },2500);
+    }else loadProxies();
   }else{
     big.textContent='ПОДКЛЮЧИТЬ'; sv.textContent='○ ОТКЛЮЧЕНО'; setHomeState('off');
-    clearInterval(sessTimer); sessTimer=null; document.getElementById('sess-time').textContent='00:00';
+    clearInterval(sessTimer); sessTimer=null; sessStart=0; document.getElementById('sess-time').textContent='00:00';
     stopTraffic();
     updateHomeServer('', null);
     renderCachedServers();
@@ -1184,13 +1190,18 @@ async function toggleConnect(useCache=false){
   haptic('medium');
   dbg('тап connect | native='+isNative+' plugin='+(!!Vpn)+' hasStart='+(!!(Vpn&&Vpn.start)));
   if(!isNative || !Vpn){ dbg('НЕ нативно → демо-режим (плагин недоступен!)'); setUiConnected(!connected); return; }
+  if(vpnSyncing || vpnCommand) return;
+  if(!vpnReady){ void reconcileVpnState(); return; }
   if(connected){
+    const generation=++vpnGeneration; vpnCommand=true; vpnCommandPending=true; vpnButton(true);
     setStatusText('○ ОТКЛЮЧЕНИЕ…'); dbg('Vpn.stop()');
-    try{ await Vpn.stop(); }catch(e){ dbg('stop err: '+e); }
+    try{ await Vpn.stop(); }catch(e){ if(generation===vpnGeneration) vpnUnknown(); dbg('stop err: '+e); }
+    finally{ vpnCommandPending=false; }
     return;
   }
   const sub=getSubUrl();
   if(!sub){ toast('Сначала добавьте подписку'); go('subs'); openSubModal(); return; }
+  const commandGeneration=++vpnGeneration; vpnCommand=true; vpnCommandPending=true; vpnButton(true);
   setStatusText('◌ ПОДКЛЮЧЕНИЕ…'); dbg('Vpn.start(sub='+sub.substr(0,28)+'…)');
   const sm=splitMode();
   const sApps=sm==='off'?[]:[...splitSelected];
@@ -1198,19 +1209,63 @@ async function toggleConnect(useCache=false){
   const chainList = chains();
   dbg('цепочек='+chainList.length);
   try{ const r=await Vpn.start({ useCache:useCache===true, subUrl: sub, hwid: getHwid(), userAgent: getUserAgent(), splitMode: sm, splitApps: sApps, chains: chainList, warp: chainUsesWarp()?warpCreds():'', fallbacks: subFallbacks(activeSub()) }); dbg('start() вернул: '+JSON.stringify(r||{})); }
-  catch(e){ setStatusText('○ ОТКЛЮЧЕНО'); dbg('start() REJECT: '+(e&&e.message?e.message:e)); toast('Ошибка старта: '+(e&&e.message?e.message:e)); }
+  catch(e){ if(commandGeneration===vpnGeneration){ vpnCommandPending=false; vpnCommand=false; void reconcileVpnState(); } dbg('start() REJECT: '+(e&&e.message?e.message:e)); toast('Ошибка старта: '+(e&&e.message?e.message:e)); }
+  finally{ vpnCommandPending=false; }
 }
 
-if(Vpn && Vpn.addListener){
-  Vpn.addListener('vpnState', (s)=>{
-    dbg('событие: '+s.state+(s.message?' — '+s.message:''));
-    if(s.state==='diag'){ dbg('ядро: '+String(s.message||'').trim().replace(/\n/g,' | ')); return; }
-    if(s.state==='connected'){ haptic('success'); setUiConnected(true); }
-    else if(s.state==='disconnected') setUiConnected(false);
-    else if(s.state==='error'){ haptic('error'); setUiConnected(false); toast('VPN: '+(s.message||'ошибка')); }
-    else if(s.state==='info'){ toast(String(s.message||'')); }
-  });
+let vpnGeneration=0, vpnReady=false, vpnSyncing=false, vpnCommand=false, vpnCommandPending=false;
+let vpnListener=null, vpnRegistering=null;
+function vpnButton(disabled){ document.getElementById('connect-big').disabled=disabled; }
+function boundedVpn(promise){
+  let timer;
+  return Promise.race([promise,new Promise((_,reject)=>{ timer=setTimeout(()=>reject(Error('VPN status timeout')),5000); })]).finally(()=>clearTimeout(timer));
 }
+function vpnUnknown(){
+  vpnReady=false; vpnCommand=false;
+  setStatusText('◌ СТАТУС НЕИЗВЕСТЕН'); setHomeState('busy');
+  document.getElementById('connect-big').textContent='ПРОВЕРИТЬ СТАТУС'; vpnButton(false);
+}
+function onVpnState(s){
+  dbg('событие: '+s.state+(s.message?' — '+s.message:''));
+  if(s.state==='diag'){ dbg('ядро: '+String(s.message||'').trim().replace(/\n/g,' | ')); return; }
+  if(s.state==='info'){ toast(String(s.message||'')); return; }
+  if(!['connected','disconnected','error','connecting','stopping'].includes(s.state)) return;
+  ++vpnGeneration;
+  const fresh=vpnCommand && s.state==='connected';
+  vpnSyncing=false;
+  if(s.state==='connecting' || s.state==='stopping'){
+    vpnReady=false; vpnButton(true); setStatusText(s.state==='connecting'?'◌ ПОДКЛЮЧЕНИЕ…':'○ ОТКЛЮЧЕНИЕ…'); return;
+  }
+  vpnCommand=false; vpnReady=true; vpnButton(false);
+  setUiConnected(s.state==='connected',fresh,s.elapsedMs);
+  if(fresh && !document.hidden) haptic('success');
+  if(s.state==='error'){ haptic('error'); toast('VPN: '+(s.message||'ошибка')); }
+}
+async function reconcileVpnState(){
+  if(!isNative || !Vpn){ vpnReady=true; vpnButton(false); setUiConnected(connected,false); return; }
+  if(vpnSyncing || vpnCommandPending) return;
+  // Capture BEFORE registering: even an event delivered during registration wins.
+  const generation=++vpnGeneration;
+  vpnSyncing=true; vpnReady=false; vpnButton(true);
+  setStatusText('◌ ПРОВЕРКА СТАТУСА…');
+  try{
+    if(!vpnListener){
+      if(!vpnRegistering) vpnRegistering=Promise.resolve(Vpn.addListener('vpnState',onVpnState)).then(handle=>{ vpnListener=handle; return handle; }).finally(()=>{ vpnRegistering=null; });
+      await boundedVpn(vpnRegistering);
+    }
+    if(generation!==vpnGeneration) return;
+    const s=await boundedVpn(Vpn.status());
+    if(generation!==vpnGeneration) return;
+    if(typeof s?.running!=='boolean') throw Error('Invalid VPN status');
+    if(s.state==='connecting' || s.state==='stopping'){
+      vpnReady=false; vpnButton(true); setStatusText(s.state==='connecting'?'◌ ПОДКЛЮЧЕНИЕ…':'○ ОТКЛЮЧЕНИЕ…');
+    }else{
+      vpnCommand=false; vpnReady=true; vpnButton(false); setUiConnected(s.running,false,s.elapsedMs);
+    }
+  }catch(e){ if(generation===vpnGeneration){ dbg('status: '+e); vpnUnknown(); } }
+  finally{ if(generation===vpnGeneration) vpnSyncing=false; }
+}
+function initVpnState(){ return reconcileVpnState(); }
 
 // ---------- серверы из API ядра ----------
 function updateHomeServer(name, ping){
@@ -1807,7 +1862,7 @@ function fmtSession(sec){ const p=n=>String(n).padStart(2,'0'); const h=Math.flo
 function tickSession(){ if(document.hidden) return; const s=Math.max(0,Math.floor((Date.now()-sessStart)/1000)); const el=document.getElementById('sess-time'); if(el) el.textContent=fmtSession(s); }
 document.addEventListener('visibilitychange', ()=>{
   if(document.hidden){ if(trafTimer){ clearInterval(trafTimer); trafTimer=null; prevTrafT=0; } if(sessTimer){ clearInterval(sessTimer); sessTimer=null; } }
-  else if(connected){ if(!sessTimer){ sessTimer=setInterval(tickSession,1000); tickSession(); } startTraffic(); loadProxies(); }
+  else void reconcileVpnState();
 });
 let trafTimer=null, totalUp=0, totalDown=0;
 function startTraffic(){
@@ -1843,7 +1898,7 @@ applyModeLabel();
 refreshSplitSub();
 initAutostart();
 renderSubs();
-setUiConnected(false);
+// Native state initialization runs below, after every global declaration.
 // заголовки панели (title/logo/оплата/поддержка/трафик) — на старте, при добавлении и переключении
 function fetchSubMeta(sub){ if(sub?.id===activeSubId()) return refreshSubscription(); }
 function subFlags(){ const a=activeSub(); return (a&&a.flags)||{}; }
@@ -1878,6 +1933,7 @@ if(!localStorage.getItem('mise_hint_swipe')){ localStorage.setItem('mise_hint_sw
 // стартовая диагностика окружения
 dbg('старт '+BUILD+' | Cap='+(!!Cap)+' platform='+platform+' native='+isNative+' plugin='+(!!Vpn)+' reg='+(!!(Cap&&Cap.registerPlugin)));
 const vs=document.getElementById('ver-sub'); if(vs) vs.textContent='MISETANIBOX · '+BUILD.toUpperCase();
+void initVpnState();
 </script>
 </body>
 </html>

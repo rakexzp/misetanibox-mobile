@@ -38,6 +38,7 @@ class VpnPlugin : Plugin() {
                 val ret = JSObject()
                 ret.put("state", i?.getStringExtra("state") ?: "")
                 ret.put("message", i?.getStringExtra("message") ?: "")
+                ret.put("elapsedMs", i?.getLongExtra("elapsedMs", 0L) ?: 0L)
                 notifyListeners("vpnState", ret)
             }
         }
@@ -334,7 +335,10 @@ class VpnPlugin : Plugin() {
     @PluginMethod
     fun status(call: PluginCall) {
         val ret = JSObject()
-        ret.put("running", MihomoVpnService.isRunning)
+        val state = MihomoVpnService.uiState
+        ret.put("running", state.state == "connected")
+        ret.put("state", state.state)
+        ret.put("elapsedMs", MihomoVpnService.elapsedMs(state))
         call.resolve(ret)
     }
 

@@ -45,11 +45,17 @@ class MihomoVpnService : VpnService() {
 
         @Volatile var isRunning = false
             private set
+        data class UiState(val state: String, val startedAt: Long)
+        @Volatile var uiState = UiState("disconnected", 0L)
+            private set
+        fun elapsedMs(state: UiState): Long = if (state.startedAt > 0L)
+            (android.os.SystemClock.elapsedRealtime() - state.startedAt).coerceAtLeast(0L) else 0L
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
+                broadcast("stopping", "")
                 worker.execute { stopTunnel() }
             }
             else -> {
@@ -71,6 +77,7 @@ class MihomoVpnService : VpnService() {
                 // Уведомление обязано появиться сразу после startForegroundService,
                 // поэтому показываем его на главном потоке, а запуск ядра уводим в фон.
                 startForegroundNotif()
+                if (!isRunning) broadcast("connecting", "")
                 val useCache = intent?.getBooleanExtra("useValidatedCache", false) ?: false
                 worker.execute { startTunnel(subUrl, hwid, userAgent, splitMode, splitApps, rules, chains, warp, serviceGroups, fallbacks, useCache) }
             }
@@ -339,7 +346,14 @@ class MihomoVpnService : VpnService() {
     }
 
     private fun broadcast(state: String, message: String) {
+        uiState = when (state) {
+            "connected" -> UiState(state, android.os.SystemClock.elapsedRealtime())
+            "disconnected", "error" -> UiState("disconnected", 0L)
+            "connecting", "stopping" -> UiState(state, uiState.startedAt)
+            else -> uiState
+        }
         val i = Intent("network.geodema.misetanibox.VPN_STATE")
+        i.putExtra("elapsedMs", elapsedMs(uiState))
         i.setPackage(packageName)
         i.putExtra("state", state)
         i.putExtra("message", message)
