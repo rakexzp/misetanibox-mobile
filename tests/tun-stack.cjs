@@ -1,0 +1,33 @@
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const vm=require('node:vm');
+const html=fs.readFileSync('www/index.html','utf8');
+const root='android/app/src/main/java/network/geodema/misetanibox/';
+test('stack preference persists natively without reconnecting and rolls back on failure',async()=>{
+ const start=html.indexOf('async function setTunStack(');
+ assert.ok(start>=0,'missing stack setting');
+ const source=html.slice(start,html.indexOf('\n// ----------',start));
+ const saved=[], messages=[];
+ const select={value:'mips',disabled:false};
+ let current='gvisor', fail=false;
+ const context={Vpn:{setTunStack:async({stack})=>{if(fail)throw Error('disk');saved.push(stack);}},localStorage:{setItem:(k,v)=>{current=v;}},tunStack:()=>current,toast:m=>messages.push(m),document:{getElementById:()=>select}};
+ vm.createContext(context);
+ vm.runInContext(source,context);
+ await context.setTunStack(select);
+ assert.deepEqual(saved,['mips']); assert.equal(current,'mips'); assert.equal(select.disabled,false);
+ fail=true; select.value='gvisor'; await context.setTunStack(select);
+ assert.equal(current,'mips'); assert.equal(select.value,'mips'); assert.equal(select.disabled,false);
+ assert.equal(messages.length,2);
+});
+test('Android source contract carries stack through permission and native launch paths',()=>{
+ const plugin=fs.readFileSync(root+'VpnPlugin.kt','utf8');
+ const prefs=fs.readFileSync(root+'VpnPrefs.kt','utf8');
+ const service=fs.readFileSync(root+'MihomoVpnService.kt','utf8');
+ assert.match(plugin,/pendingTunStack = VpnPrefs.validateTunStack/);
+ assert.match(plugin,/putExtra\(MihomoVpnService.EXTRA_TUN_STACK, pendingTunStack\)/);
+ assert.match(plugin,/fun setTunStack\(call: PluginCall\)/);
+ assert.match(prefs,/putExtra\(MihomoVpnService.EXTRA_TUN_STACK, tunStack\(ctx\)\)/);
+ assert.match(service,/Mobilecore.startWithStack\(homeDir, config, fd.toLong\(\), tunStack\)/);
+ assert.match(html,/tunStack: tunStack\(\)/);
+});

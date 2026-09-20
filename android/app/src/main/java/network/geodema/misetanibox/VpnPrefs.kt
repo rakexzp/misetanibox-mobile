@@ -35,6 +35,20 @@ object VpnPrefs {
     const val KEY_WARP = "warp"
     /** JSON-массив запасных адресов подписки */
     const val KEY_FALLBACKS = "fallbacks"
+    const val KEY_TUN_STACK = "tun_stack"
+
+    fun validateTunStack(value: String?): String = when (value) {
+        null, "", "gvisor" -> "gvisor"
+        "mips" -> "mips"
+        else -> throw IllegalArgumentException("неподдерживаемый стек TUN: $value")
+    }
+
+    fun tunStack(ctx: Context): String = validateTunStack(prefs(ctx).getString(KEY_TUN_STACK, "gvisor"))
+
+    fun setTunStack(ctx: Context, value: String?) {
+        val stack = validateTunStack(value)
+        check(prefs(ctx).edit().putString(KEY_TUN_STACK, stack).commit()) { "не удалось сохранить стек TUN" }
+    }
 
     fun prefs(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -117,9 +131,11 @@ object VpnPrefs {
     fun startFromPrefs(ctx: Context): String? {
         if (!hasSubscription(ctx)) return "нет подписки"
         if (VpnService.prepare(ctx) != null) return "нужно разрешение VPN"
+        try { tunStack(ctx) } catch (e: IllegalArgumentException) { return e.message }
         val p = prefs(ctx)
         val i = Intent(ctx, MihomoVpnService::class.java).apply {
             action = MihomoVpnService.ACTION_START
+            putExtra(MihomoVpnService.EXTRA_TUN_STACK, tunStack(ctx))
             putExtra(MihomoVpnService.EXTRA_SUB_URL, p.getString(KEY_SUB_URL, "") ?: "")
             putExtra(MihomoVpnService.EXTRA_HWID, p.getString(KEY_HWID, "") ?: "")
             putExtra(MihomoVpnService.EXTRA_USER_AGENT, Subscription.userAgentOr(p.getString(KEY_USER_AGENT, "")))

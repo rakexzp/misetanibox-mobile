@@ -76,7 +76,27 @@ func SetProtect(p SocketProtector) {
 
 // Start применяет YAML-конфиг подписки и заводит TUN на переданном fd
 // (fd — от Android VpnService.establish()). Возвращает "" при успехе или текст ошибки.
-func Start(homeDir, configYAML string, fd int) (ret string) {
+func Start(homeDir, configYAML string, fd int) string {
+	return StartWithStack(homeDir, configYAML, fd, "gvisor")
+}
+
+func androidTunStack(name string) (C.TUNStack, error) {
+	switch name {
+	case "", "gvisor":
+		return C.TunGvisor, nil
+	case "mips":
+		return C.TunMips, nil
+	default:
+		return C.TunGvisor, fmt.Errorf("неподдерживаемый стек TUN: %q", name)
+	}
+}
+
+// StartWithStack выбирает стек Android; пустое значение сохраняет прежний gvisor.
+func StartWithStack(homeDir, configYAML string, fd int, stackName string) (ret string) {
+	stack, err := androidTunStack(stackName)
+	if err != nil {
+		return err.Error()
+	}
 	defer func() {
 		if r := recover(); r != nil {
 			ret = fmt.Sprintf("ядро упало при старте: %v", r)
@@ -85,7 +105,7 @@ func Start(homeDir, configYAML string, fd int) (ret string) {
 	// Стек gvisor компилируется только с -tags with_gvisor. Без тега sing-tun подставляет
 	// заглушку: TUN не поднимается, а hub.ApplyConfig ошибку не возвращает — приложение
 	// думает, что подключилось, при этом трафик уходит в никуда. Проверяем явно.
-	if !tun.WithGVisor {
+	if stack == C.TunGvisor && !tun.WithGVisor {
 		return "ядро собрано без поддержки TUN (нужен -tags with_gvisor)"
 	}
 
@@ -102,7 +122,7 @@ func Start(homeDir, configYAML string, fd int) (ret string) {
 	cfg.General.Tun = LC.Tun{
 		Enable:              true,
 		FileDescriptor:      fd,
-		Stack:               C.TunGvisor,
+		Stack:               stack,
 		AutoRoute:           false,
 		AutoDetectInterface: false,
 		DNSHijack:           []string{"any:53"},

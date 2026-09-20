@@ -18,6 +18,7 @@ import com.getcapacitor.annotation.CapacitorPlugin
 @CapacitorPlugin(name = "Vpn")
 class VpnPlugin : Plugin() {
 
+    private var pendingTunStack = "gvisor"
     private var pendingUseCache = false
     private var pendingSubUrl = ""
     private var pendingHwid = ""
@@ -56,6 +57,13 @@ class VpnPlugin : Plugin() {
 
     @PluginMethod
     fun start(call: PluginCall) {
+        try {
+            pendingTunStack = VpnPrefs.validateTunStack(call.getString("tunStack") ?: VpnPrefs.tunStack(context))
+            VpnPrefs.setTunStack(context, pendingTunStack)
+        } catch (e: Exception) {
+            call.reject(e.message ?: "не удалось выбрать стек TUN")
+            return
+        }
         pendingUseCache = call.getBoolean("useCache", false) ?: false
         pendingSubUrl = call.getString("subUrl") ?: ""
         pendingHwid = call.getString("hwid") ?: ""
@@ -119,6 +127,7 @@ class VpnPlugin : Plugin() {
         val i = Intent(context, MihomoVpnService::class.java)
         i.action = MihomoVpnService.ACTION_START
         i.putExtra("useValidatedCache", pendingUseCache)
+        i.putExtra(MihomoVpnService.EXTRA_TUN_STACK, pendingTunStack)
         i.putExtra(MihomoVpnService.EXTRA_SUB_URL, pendingSubUrl)
         i.putExtra(MihomoVpnService.EXTRA_HWID, pendingHwid)
         i.putExtra(MihomoVpnService.EXTRA_USER_AGENT, pendingUserAgent)
@@ -309,6 +318,23 @@ class VpnPlugin : Plugin() {
         ExpiryReminder.save(context, call.getString("name") ?: "", (call.getDouble("expireAt") ?: 0.0).toLong(), call.getBoolean("enabled", false) ?: false, call.getInt("days") ?: 3)
         ExpiryReminder.schedule(context)
         call.resolve()
+    }
+
+    @PluginMethod
+    fun setTunStack(call: PluginCall) {
+        try {
+            VpnPrefs.setTunStack(context, call.getString("stack"))
+            call.resolve()
+        } catch (e: Exception) { call.reject(e.message ?: "не удалось сохранить стек TUN") }
+    }
+
+    @PluginMethod
+    fun getTunStack(call: PluginCall) {
+        try {
+            val ret = JSObject()
+            ret.put("stack", VpnPrefs.tunStack(context))
+            call.resolve(ret)
+        } catch (e: Exception) { call.reject(e.message ?: "не удалось прочитать стек TUN") }
     }
 
     @PluginMethod

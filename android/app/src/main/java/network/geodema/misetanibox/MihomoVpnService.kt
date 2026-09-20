@@ -29,6 +29,7 @@ class MihomoVpnService : VpnService() {
         const val ACTION_START = "network.geodema.misetanibox.START"
         const val ACTION_STOP = "network.geodema.misetanibox.STOP"
         const val EXTRA_SUB_URL = "sub_url"
+        const val EXTRA_TUN_STACK = "tun_stack"
         const val EXTRA_HWID = "hwid"
         const val EXTRA_USER_AGENT = "user_agent"
         const val EXTRA_SPLIT_MODE = "split_mode"
@@ -79,7 +80,8 @@ class MihomoVpnService : VpnService() {
                 startForegroundNotif()
                 if (!isRunning) broadcast("connecting", "")
                 val useCache = intent?.getBooleanExtra("useValidatedCache", false) ?: false
-                worker.execute { startTunnel(subUrl, hwid, userAgent, splitMode, splitApps, rules, chains, warp, serviceGroups, fallbacks, useCache) }
+                val requestedStack = intent?.getStringExtra(EXTRA_TUN_STACK)
+                worker.execute { startTunnel(subUrl, hwid, userAgent, splitMode, splitApps, rules, chains, warp, serviceGroups, fallbacks, useCache, requestedStack) }
             }
         }
         // не START_STICKY: иначе система переподнимет сервис с пустым intent и без подписки
@@ -98,9 +100,11 @@ class MihomoVpnService : VpnService() {
         serviceGroups: Array<String>,
         fallbacks: Array<String> = arrayOf(),
         useCache: Boolean = false,
+        requestedStack: String? = null,
     ) {
         if (running) return
         try {
+            val tunStack = VpnPrefs.validateTunStack(requestedStack ?: VpnPrefs.tunStack(this))
             // Классика: сперва тянем конфиг подписки (со всеми селекторами автора). Если не
             // удалось — не поднимаем TUN, иначе интернет пропадёт при мёртвом туннеле.
             // панели даём 5 с на всё (с запасными адресами), дальше молча поднимаемся по копии
@@ -157,7 +161,7 @@ class MihomoVpnService : VpnService() {
             // цепочки и WARP ядро вшивает в конфиг подписки перед стартом
             Mobilecore.setChains(chains)
             Mobilecore.setWarp(warp)
-            val err = Mobilecore.start(homeDir, config, fd.toLong())
+            val err = Mobilecore.startWithStack(homeDir, config, fd.toLong(), tunStack)
             if (err.isNotEmpty()) {
                 broadcast("error", err)
                 stopTunnel() // закроет дескриптор: иначе интерфейс останется поднятым и весь трафик уйдёт в никуда

@@ -537,6 +537,7 @@ html:not(.ios) .ios-only{display:none!important}
     <div class="row" onclick="go('subs')"><div class="grow"><div class="t">Подписки</div><div class="s" id="subs-sub-row">НЕТ ПОДПИСОК</div></div><span class="chev">›</span></div>
     <div class="row" onclick="go('rules')"><div class="grow"><div class="t">Правила</div><div class="s">РЕЖИМ · РОУТИНГ · СЕЛЕКТОРЫ</div></div><span class="chev">›</span></div>
     <div class="grp-label">Туннель</div>
+    <div class="row android-only"><div class="grow"><div class="t">Стек TUN</div><div class="s">ПРИ СЛЕДУЮЩЕМ ПОДКЛЮЧЕНИИ</div></div><select id="tun-stack" aria-label="Стек TUN" onchange="setTunStack(this)"><option value="gvisor">gVisor</option><option value="mips">MIPS (новый)</option></select></div>
     <div class="row android-only" onclick="appsBack='settings';go('apps')"><div class="grow"><div class="t">Роутинг приложений</div><div class="s" id="split-sub">ПО ПРИЛОЖЕНИЯМ · ВЫКЛ</div></div><span class="chev">›</span></div>
     <div class="row" onclick="go('chains')"><div class="grow"><div class="t">Цепочки</div><div class="s" id="chains-sub">НЕТ ЦЕПОЧЕК</div></div><span class="chev">›</span></div>
     <div class="row"><div class="grow"><div class="t">Автозапуск</div><div class="s">ПОДНЯТЬ ТУННЕЛЬ ПРИ ВКЛЮЧЕНИИ УСТРОЙСТВА</div></div><button class="toggle" id="tgl-autostart" onclick="toggleAutostart(this)"></button></div>
@@ -933,7 +934,7 @@ function sheetDrag(overlay){
 }
 
 // ---------- Capacitor: нативный VPN-плагин ----------
-const BUILD = 'v0.21.16';
+const BUILD = 'v0.21.17';
 const Cap = window.Capacitor;
 const platform = (Cap && Cap.getPlatform) ? Cap.getPlatform() : 'web';
 const isNative = !!(Cap && Cap.isNativePlatform ? Cap.isNativePlatform() : (platform && platform!=='web'));
@@ -1208,7 +1209,10 @@ async function toggleConnect(useCache=false){
   dbg('split='+sm+' apps='+sApps.length);
   const chainList = chains();
   dbg('цепочек='+chainList.length);
-  try{ const r=await Vpn.start({ useCache:useCache===true, subUrl: sub, hwid: getHwid(), userAgent: getUserAgent(), splitMode: sm, splitApps: sApps, chains: chainList, warp: chainUsesWarp()?warpCreds():'', fallbacks: subFallbacks(activeSub()) }); dbg('start() вернул: '+JSON.stringify(r||{})); }
+  try{
+    // Не перезаписывать native prefs устаревшим WebView-кешем при быстром старте.
+    if(Vpn.getTunStack){ const saved=await Vpn.getTunStack(); localStorage.setItem('mise_tunStack',saved.stack); }
+    const r=await Vpn.start({ tunStack: tunStack(), useCache:useCache===true, subUrl: sub, hwid: getHwid(), userAgent: getUserAgent(), splitMode: sm, splitApps: sApps, chains: chainList, warp: chainUsesWarp()?warpCreds():'', fallbacks: subFallbacks(activeSub()) }); dbg('start() вернул: '+JSON.stringify(r||{})); }
   catch(e){ if(commandGeneration===vpnGeneration){ vpnCommandPending=false; vpnCommand=false; void reconcileVpnState(); } dbg('start() REJECT: '+(e&&e.message?e.message:e)); toast('Ошибка старта: '+(e&&e.message?e.message:e)); }
   finally{ vpnCommandPending=false; }
 }
@@ -1711,8 +1715,32 @@ function renderAccents(){
 }
 function setAccent(c){ localStorage.setItem('mise_accent', c); applyAccent(); renderAccents(); }
 
+// ---------- стек TUN (нативные prefs — источник истины) ----------
+function tunStack(){ return localStorage.getItem('mise_tunStack')==='mips'?'mips':'gvisor'; }
+async function initTunStack(){
+  const select=document.getElementById('tun-stack'); if(!select) return;
+  select.value=tunStack();
+  if(!Vpn||!Vpn.getTunStack) return;
+  select.disabled=true;
+  try{ const r=await Vpn.getTunStack(); localStorage.setItem('mise_tunStack',r.stack); select.value=tunStack(); }
+  catch(e){ toast('Не удалось прочитать стек TUN'); }
+  finally{ select.disabled=false; }
+}
+async function setTunStack(select){
+  const previous=tunStack(), stack=select.value;
+  select.disabled=true;
+  try{
+    if(stack!=='gvisor'&&stack!=='mips') throw new Error('invalid stack');
+    if(Vpn&&Vpn.setTunStack) await Vpn.setTunStack({stack});
+    localStorage.setItem('mise_tunStack',stack);
+    toast('Стек TUN применится при следующем подключении');
+  }catch(e){ select.value=previous; toast('Не удалось сохранить стек TUN'); }
+  finally{ select.disabled=false; }
+}
+
 // ---------- автозапуск (нативный prefs) ----------
 async function initAutostart(){
+  initTunStack();
   const b=document.getElementById('tgl-autostart'); if(!b||!Vpn||!Vpn.getAutostart) return;
   try{ const r=await Vpn.getAutostart(); b.classList.toggle('on', !!(r&&r.on)); }catch(e){}
 }

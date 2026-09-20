@@ -21,6 +21,7 @@ function env(native=true){
  const run=s=>vm.runInContext(s,ctx);
  run('let _mainSel=null,_providerNodes=null;'+section('let connected=false','function setStatusText'));
  run(section('function setStatusText','// состояние обложки'));
+ run(section('function tunStack()', 'async function initTunStack'));
  run(section('async function toggleConnect','// ---------- серверы из API ядра'));
  run(section('function fmtBytes','// ---------- тема'));
  return {ctx,run,node,calls,registration,snapshots,events,timeouts,intervals,emit:s=>listener(s),boot:()=>run('initVpnState()')};
