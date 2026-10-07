@@ -143,8 +143,6 @@ github.com/metacubex/kcp-go v0.0.0-20260105040817-550693377604 h1:hJwCVlE3ojViC3
 github.com/metacubex/kcp-go v0.0.0-20260105040817-550693377604/go.mod h1:lpmN3m269b3V5jFCWtffqBLS4U3QQoIid9ugtO+OhVc=
 github.com/metacubex/mhurl v0.1.0 h1:ZdW4Zxe3j3uJ89gNytOazHu6kbHn5owutN/VfXOI8GE=
 github.com/metacubex/mhurl v0.1.0/go.mod h1:2qpQImCbXoUs6GwJrjuEXKelPyoimsIXr07eNKZdS00=
-github.com/metacubex/mihomo v1.19.31 h1:gqtGzDf8DtNCj8gGE5XSgGeF2j40ZUBB0nlwiSyxg5g=
-github.com/metacubex/mihomo v1.19.31/go.mod h1:LrKKxtHjjlgYjYiTrYyvI8bOWwHW0HUH0c1LXlf3Kcg=
 github.com/metacubex/mipstack v0.0.0-20260910230046-ba762df4c91d h1:hc1OeKdo7YIcmTrzwlJLjNZ4EZDKRHi/Ntv7GdYs2YI=
 github.com/metacubex/mipstack v0.0.0-20260910230046-ba762df4c91d/go.mod h1:+bbwALZI0pbi2auSG5A3ptdpV2DZ2eLObziXo+P7oj0=
 github.com/metacubex/mlkem v0.1.0 h1:wFClitonSFcmipzzQvax75beLQU+D7JuC+VK1RzSL8I=
@@ -223,6 +221,8 @@ github.com/pires/go-proxyproto v0.8.0 h1:5unRmEAPbHXHuLjDg01CxJWf91cw3lKHc/0xzKp
 github.com/pires/go-proxyproto v0.8.0/go.mod h1:iknsfgnH8EkjrMeMyvfKByp9TiBZCKZM0jx2xmKqnVY=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
+github.com/rakexzp/mihomo v0.0.0-20261007151754-875e8cc5d80b h1:6xdDuWiV85V2AMQvxSnzZbKPdsTjNog4tQ9SgB5wcn8=
+github.com/rakexzp/mihomo v0.0.0-20261007151754-875e8cc5d80b/go.mod h1:LrKKxtHjjlgYjYiTrYyvI8bOWwHW0HUH0c1LXlf3Kcg=
 github.com/rasky/go-lzo v0.0.0-20200203143853-96a758eda86e h1:dCWirM5F3wMY+cmRda/B1BiPsFtmzXqV9b0hLWtVBMs=
 github.com/rasky/go-lzo v0.0.0-20200203143853-96a758eda86e/go.mod h1:9leZcVcItj6m9/CfHY5Em/iBrCz7js8LcRQGTKEEv2M=
 github.com/rogpeppe/go-internal v1.12.0 h1:exVL4IDcn6na9z1rAb56Vxr+CgyK3nn3O+epU5NdKM8=

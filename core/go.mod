@@ -147,4 +147,9 @@ require (
 // Match mihomo's protobuf fork (dependency replace directives are not inherited).
 replace google.golang.org/protobuf => github.com/metacubex/protobuf-go v0.0.0-20260306035419-7ceee0674686
 
+// Fork of mihomo v1.19.31 with one patch (branch misetani-v1.19.31): the REALITY
+// ClientHello announces the current Xray-core version instead of 1.8.2, so servers
+// with minClientVer set accept us. Re-apply the patch when bumping mihomo.
+replace github.com/metacubex/mihomo => github.com/rakexzp/mihomo v0.0.0-20261007151754-875e8cc5d80b
+
 tool golang.org/x/mobile/cmd/gobind
