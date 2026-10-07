@@ -208,6 +208,27 @@ func TestXHTTPExtraIsCarriedOver(t *testing.T) {
 	}
 }
 
+// TestXHTTPZeroIntervalsAreDropped guards against panels that spell "use the
+// default" as an explicit 0: Xray accepts it, mihomo refuses the whole file
+// with "sc-min-posts-interval-ms: must be greater than zero".
+func TestXHTTPZeroIntervalsAreDropped(t *testing.T) {
+	config := `[{"remarks":"Zero","outbounds":[{"protocol":"vless","settings":{"vnext":[{"address":"x.example.com",
+		"port":443,"users":[{"id":"b831381d-6324-4d53-ad4f-8cda48b30811","encryption":"none"}]}]},
+		"streamSettings":{"network":"xhttp","security":"tls","tlsSettings":{"serverName":"x.example.com"},
+		"xhttpSettings":{"path":"/","mode":"auto","extra":{"scMinPostsIntervalMs":0,"scMaxEachPostBytes":0}}}}]}]`
+
+	res, err := ConvertSubscription(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, unwanted := range []string{"sc-min-posts-interval-ms", "sc-max-each-post-bytes"} {
+		if strings.Contains(res.Config, unwanted) {
+			t.Errorf("an explicit zero for %s should be dropped, got:\n%s", unwanted, res.Config)
+		}
+	}
+	parseWithCore(t, res.Config)
+}
+
 // TestVlessEncryptionIsCarriedOver covers post-quantum VLESS, where the whole
 // value is one string that mihomo parses with Xray's grammar.
 func TestVlessEncryptionIsCarriedOver(t *testing.T) {

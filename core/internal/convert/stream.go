@@ -561,8 +561,10 @@ func (c *converter) buildXHTTPOpts(cfg *xray.XHTTPConfig) (*yamlx.Map, error) {
 	opts.SetStr("uplink-data-key", strings.TrimSpace(string(cfg.UplinkDataKey)))
 	opts.SetStr("uplink-chunk-size", cfg.UplinkChunkSize.String())
 
-	opts.SetStr("sc-max-each-post-bytes", cfg.ScMaxEachPostBytes.String())
-	opts.SetStr("sc-min-posts-interval-ms", cfg.ScMinPostsIntervalMs.String())
+	// Xray treats 0 here as "use the default", but mihomo rejects the whole
+	// file over a zero, so an explicit 0 is dropped the same way as unset.
+	opts.SetStr("sc-max-each-post-bytes", nonZeroRange(cfg.ScMaxEachPostBytes))
+	opts.SetStr("sc-min-posts-interval-ms", nonZeroRange(cfg.ScMinPostsIntervalMs))
 
 	// Settings that only exist on the Xray side.
 	if cfg.NoSSEHeader {
