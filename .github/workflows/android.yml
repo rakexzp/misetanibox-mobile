@@ -56,6 +56,16 @@ jobs:
       - name: gomobile init
         run: gomobile init
 
+      # Версия живёт в двух местах: versionName для Android и BUILD в www — по
+      # BUILD интерфейс показывает версию и сравнивает её с манифестом
+      # обновлений. Разъехались — приложение врёт о версии и вечно просит обновиться.
+      - name: Check BUILD matches versionName
+        run: |
+          gradle=$(sed -n 's/^ *versionName "\(.*\)"/\1/p' android/app/build.gradle)
+          web=$(sed -n "s/^const BUILD = 'v\(.*\)';/\1/p" www/index.html)
+          echo "versionName=$gradle BUILD=$web"
+          test -n "$gradle" && test "$gradle" = "$web"
+
       # Конвертер подписок (Xray JSON / список ссылок → YAML mihomo) проверяется
       # тем же парсером, которым ядро читает конфиг: переименованное в mihomo поле
       # иначе всплывёт уже на телефоне — туннель поднят, трафика нет.
