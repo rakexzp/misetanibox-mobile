@@ -391,8 +391,12 @@ input,textarea,select,[contenteditable]{-webkit-user-select:text;user-select:tex
 .row .chev[onclick]{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-opacity='.55' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6L6 18'/%3E%3C/svg%3E");width:36px;height:36px;margin:-9px -9px -9px 0;background-size:16px}
 .row.sub-on{box-shadow:none}
 .row.sub-on .t::after{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:#30d158;margin-left:8px;vertical-align:2px}
-.sub-logo.dot{display:none}
+/* подписка без логотипа держит ту же колонку, иначе соседние строки съезжают */
+.sub-logo.dot{visibility:hidden;width:34px;height:34px;margin:0}
 .sub-logo{width:34px;height:34px;border-radius:9px}
+/* выбор значения в строке — как остальной список, без системного белого select */
+.row select{appearance:none;-webkit-appearance:none;border:none;border-radius:0;flex:none;font-family:inherit;font-size:16px;color:rgba(255,255,255,.55);background:transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-opacity='.35' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 6l6 6-6 6'/%3E%3C/svg%3E") right center/16px no-repeat;padding:0 20px 0 8px;min-height:44px;text-align:right;text-align-last:right}
+.row select:disabled{opacity:.4}
 /* тумблер iOS: 51×31, зелёный во включённом состоянии */
 .toggle{width:51px;height:31px;border-radius:16px;border:none;background:rgba(120,120,128,.32);transition:background .25s}
 .toggle::after{left:2px;width:27px;height:27px;background:#fff;box-shadow:0 3px 8px rgba(0,0,0,.25),0 1px 1px rgba(0,0,0,.12);transition:left .25s cubic-bezier(.2,.8,.2,1)}

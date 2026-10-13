@@ -159,3 +159,10 @@ test('press feedback skips sheet and modal backdrops',()=>{
  assert.match(rule,/:not\(\.cover-sheet-overlay,\.sub-modal\)/);
  for(const sel of ['cover-sheet-overlay','sub-modal'])assert.match(html,new RegExp(`class="${sel}[^"]*"[^>]*onclick=`));
 });
+test('settings select and logoless subscriptions keep the list tidy',()=>{
+ const sel=html.match(/\.row select\{([^}]+)\}/)[1];
+ assert.match(sel,/-webkit-appearance:none/);assert.match(sel,/background:transparent/);
+ const dot=html.match(/\.sub-logo\.dot\{([^}]+)\}/g).pop();
+ assert.match(dot,/visibility:hidden/);assert.match(dot,/width:34px/);
+ assert.doesNotMatch(dot,/display:none/);
+});
