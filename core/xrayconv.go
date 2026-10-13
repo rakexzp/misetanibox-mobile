@@ -223,6 +223,7 @@ func convertXray(text string) (*ConvertResult, error) {
 		Groups:  len(result.Groups),
 		Names:   strings.Join(selectable, "\n"),
 		Notes:   diagnosticsText(result),
+		Nodes:   mihomoNodes(yamlText),
 	}, nil
 }
 
@@ -276,6 +277,7 @@ func convertURIList(text string) (*ConvertResult, error) {
 		Format:  FormatURI,
 		Proxies: len(proxies),
 		Names:   strings.Join(names, "\n"),
+		Nodes:   mihomoNodes(yamlText),
 	}, nil
 }
 

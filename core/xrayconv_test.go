@@ -2,6 +2,7 @@ package mobilecore
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"os"
 	"strings"
 	"testing"
@@ -370,6 +371,35 @@ func TestURIListConversion(t *testing.T) {
 				if _, ok := cfg.Proxies[name]; !ok {
 					t.Errorf("the core did not build the proxy %q", name)
 				}
+			}
+		})
+	}
+}
+
+// TestNodesForEveryFormat: the offline server list pings host:port from Nodes,
+// so a converted subscription must carry them just like a mihomo YAML does.
+func TestNodesForEveryFormat(t *testing.T) {
+	for _, tc := range []struct {
+		name, body, node, addr string
+	}{
+		{"uri", "trojan://password@trojan.example.com:8443?sni=trojan.example.com#Trojan%20node",
+			"Trojan node", "trojan.example.com:8443"},
+		{"xray", `[{"remarks":"X","outbounds":[{"protocol":"vless","settings":{"vnext":[{"address":"x.example.com",
+			"port":443,"users":[{"id":"b831381d-6324-4d53-ad4f-8cda48b30811","encryption":"none"}]}]},
+			"streamSettings":{"network":"tcp","security":"tls","tlsSettings":{"serverName":"x.example.com"}}}]}]`,
+			"X", "x.example.com:443"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			res, err := ConvertSubscription(tc.body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var nodes map[string]string
+			if err := json.Unmarshal([]byte(res.Nodes), &nodes); err != nil {
+				t.Fatalf("Nodes is not JSON: %q", res.Nodes)
+			}
+			if nodes[tc.node] != tc.addr {
+				t.Fatalf("Nodes[%q] = %q, want %q (all: %v)", tc.node, nodes[tc.node], tc.addr, nodes)
 			}
 		})
 	}

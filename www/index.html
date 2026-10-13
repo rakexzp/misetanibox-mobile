@@ -315,13 +315,13 @@ body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Sego
 @keyframes pop-out{from{transform:translateX(0)}to{transform:translateX(100%)}}
 @keyframes dim-on{from{opacity:0}to{opacity:.45}}
 @keyframes dim-off{from{opacity:.45}to{opacity:0}}
-.view:not(#view-home):not(#view-rules):not(#view-subs){background:#0f1013;isolation:isolate;transform:translateX(0)}
+/* Подложка — фон самого экрана (scrim → затемнение вместо opacity .55 → обои в ч/б через luminosity).
+   background-attachment:scroll не прокручивается вместе со списком, а transform экрана везёт её целиком.
+   Панели «Правила»/«Подписки» тоже непрозрачные — главная сквозь них не просвечивает. */
+.view:not(#view-home){background:linear-gradient(180deg,rgba(0,0,0,.6) 0%,rgba(0,0,0,.72) 50%,rgba(0,0,0,.88) 100%),linear-gradient(rgba(15,16,19,.45),rgba(15,16,19,.45)),var(--wp-img,radial-gradient(120% 70% at 20% 0%,#4a5262 0%,transparent 60%),radial-gradient(90% 60% at 90% 40%,#2b303a 0%,transparent 60%),linear-gradient(160deg,#23262e,#0f1013)) center/cover,#0f1013;background-blend-mode:normal,normal,luminosity}
 .view.push-in,.view.push-out,.view.pop-in,.view.pop-out,.view.drag-over,.view.drag-under{position:absolute;inset:0;will-change:transform;overflow:hidden;isolation:isolate}
-/* Фиксированные слои не прокручиваются вместе со списком; transform страницы везёт их целиком. */
-.view:not(#view-home):not(#view-rules):not(#view-subs)::before{content:"";position:fixed;inset:0;z-index:-2;pointer-events:none;background:var(--wp-img,radial-gradient(120% 70% at 20% 0%,#4a5262 0%,transparent 60%),radial-gradient(90% 60% at 90% 40%,#2b303a 0%,transparent 60%),linear-gradient(160deg,#23262e,#0f1013)) center/cover;filter:grayscale(.85) contrast(.95);opacity:.55}
-.view:not(#view-home):not(#view-rules):not(#view-subs)>.scrim-layer{display:block}
-.scrim-layer{display:none;position:fixed;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(180deg,rgba(0,0,0,.6) 0%,rgba(0,0,0,.72) 50%,rgba(0,0,0,.88) 100%)}
-/* Возврат — один push, без повторного hero-in после display:none. */
+.scrim-layer{display:none}
+/* Возврат — один push, без повторного hero-in после display:none (снимается при смене состояния в setHomeState). */
 #view-home.nav-visited .hero-line{animation:none}
 .view.push-in{animation:push-in .38s cubic-bezier(.32,.72,0,1) both;z-index:4}
 .view.push-out{animation:push-out .38s cubic-bezier(.32,.72,0,1) both;z-index:2;pointer-events:none}
@@ -1162,10 +1162,13 @@ function setUiConnected(on, fresh=true, elapsedMs=0){
 }
 function setStatusText(t){ const sv=document.getElementById('status-val'); if(sv) sv.textContent=t; if(/ПОДКЛЮЧЕНИЕ/.test(t)) setHomeState('busy'); }
 // состояние обложки: on / off / busy (+перезапуск бликов)
+let homeState='';
 function setHomeState(st){
   const h=document.getElementById('view-home'); if(!h) return;
   h.classList.toggle('on', st==='on'); h.classList.toggle('busy', st==='busy');
-  const hero=document.getElementById('cover-hero'); if(hero){ hero.style.animation='none'; for(const l of hero.querySelectorAll('.hero-line')){ l.style.animation='none'; void l.offsetWidth; l.style.animation=''; } }
+  // Влёт строк — только при реальной смене состояния: сверка статуса при возврате в приложение не дёргает обложку.
+  const hero=document.getElementById('cover-hero'); if(hero && st!==homeState){ h.classList.remove('nav-visited'); hero.style.animation='none'; for(const l of hero.querySelectorAll('.hero-line')){ l.style.animation='none'; void l.offsetWidth; l.style.animation=''; } }
+  homeState=st;
   const big=document.getElementById('connect-big'); if(big && st==='busy') big.textContent='ПОДКЛЮЧАЮ…';
   updateCoverMeta();
 }
@@ -1250,8 +1253,9 @@ async function reconcileVpnState(){
   if(vpnSyncing || vpnCommandPending) return;
   // Capture BEFORE registering: even an event delivered during registration wins.
   const generation=++vpnGeneration;
-  vpnSyncing=true; vpnReady=false; vpnButton(true);
-  setStatusText('◌ ПРОВЕРКА СТАТУСА…');
+  // Повторная сверка (возврат в приложение) — тихая: без мигания статуса и кнопки; тапы и так ждут vpnSyncing.
+  vpnSyncing=true;
+  if(!vpnReady){ vpnButton(true); setStatusText('◌ ПРОВЕРКА СТАТУСА…'); }
   try{
     if(!vpnListener){
       if(!vpnRegistering) vpnRegistering=Promise.resolve(Vpn.addListener('vpnState',onVpnState)).then(handle=>{ vpnListener=handle; return handle; }).finally(()=>{ vpnRegistering=null; });
@@ -1488,26 +1492,37 @@ async function selectNode(group, name){
   if(r.ok){ localStorage.setItem('mise_preferred',name); toast(cleanName(name)); loadProxies(); }
   else toast('Не удалось выбрать (для авто-групп выбор недоступен)');
 }
+// Без VPN узлы проверяются TCP-коннектом напрямую (приложение идёт мимо туннеля),
+// с VPN — URL-тестом ядра. Не больше PING_POOL проверок разом: полсотни
+// одновременных на мобильной сети сами себя роняют в таймаут. Неудачные
+// перепроверяются вторым проходом, результаты рисуются по мере поступления.
+const PING_POOL=8; let pinging=false;
 async function pingAll(){
-  const f0=subFlags(); const offlineNative=!connected&&(f0.pingType==='tcp'||f0.pingType==='icmp')&&activeSub()&&activeSub().nodes;
-  if(!connected&&!offlineNative) return;
+  if(pinging) return;
+  const f=subFlags(); const nodes=(activeSub()&&activeSub().nodes)||{};
+  if(!connected&&!Object.keys(nodes).length){ toast('Подключитесь, чтобы проверить серверы'); return; }
   if(connected&&!_proxies){ const r=await core('GET','/proxies'); if(r.ok&&r.data) _proxies=r.data.proxies; }
   const P=_proxies||{}; const skip=['DIRECT','REJECT','REJECT-DROP','PASS','COMPATIBLE','GLOBAL'];
-  const leafs=connected?[...new Set(Object.keys(P).filter(n=>!isGroup(P[n]) && !skip.includes(n)))]:Object.keys(activeSub().nodes);
+  const leafs=connected?[...new Set(Object.keys(P).filter(n=>!isGroup(P[n]) && !skip.includes(n)))]:Object.keys(nodes);
   if(!leafs.length){ toast('Нет серверов'); return; }
-  toast('Проверка задержек…');
-  const f=subFlags(); const nodes=(activeSub()&&activeSub().nodes)||{};
+  pinging=true; toast('Проверка задержек…');
+  const native=!connected||f.pingType==='tcp'||f.pingType==='icmp';
   const checkUrl=f.checkUrl||'http://www.gstatic.com/generate_204';
-  await Promise.all(leafs.map(async n=>{
-    if((f.pingType==='tcp'||f.pingType==='icmp') && Vpn && nodes[n]){
-      const [host,port]=String(nodes[n]).split(':');
-      try{ const r=f.pingType==='tcp'?await Vpn.tcpPing({host, port:parseInt(port,10)||443}):await Vpn.icmpPing({host}); delays[n]=(r&&typeof r.ms==='number')?r.ms:-1; }catch{ delays[n]=-1; }
-      return;
+  const one=async n=>{
+    if(native && Vpn && nodes[n]){
+      const s=String(nodes[n]), i=s.lastIndexOf(':'), host=s.slice(0,i).replace(/^\[|\]$/g,''), port=parseInt(s.slice(i+1),10)||443;
+      try{ const r=f.pingType==='icmp'?await Vpn.icmpPing({host}):await Vpn.tcpPing({host, port}); return (r&&typeof r.ms==='number')?r.ms:-1; }catch{ return -1; }
     }
-    const rr=await core('GET','/proxies/'+encodeURIComponent(n)+'/delay?timeout=3000&url='+encodeURIComponent(checkUrl));
-    delays[n]=(rr.data && typeof rr.data.delay==='number')?rr.data.delay:-1;
-  }));
-  if(connected) renderProxies(); else renderServerSheet();
+    if(!connected) return -1;
+    const rr=await core('GET','/proxies/'+encodeURIComponent(n)+'/delay?timeout=5000&url='+encodeURIComponent(checkUrl));
+    return (rr.data && typeof rr.data.delay==='number')?rr.data.delay:-1;
+  };
+  let drawT=0; const redraw=()=>{ drawT=0; if(connected) renderProxies(); renderServerSheet(); };
+  const run=async list=>{ const q=list.slice(); await Promise.all(Array.from({length:Math.min(PING_POOL,q.length)},async()=>{
+    for(let n;(n=q.shift())!==undefined;){ delays[n]=await one(n); if(!drawT) drawT=setTimeout(redraw,150); }
+  })); };
+  try{ await run(leafs); await run(leafs.filter(n=>!(delays[n]>0))); }
+  finally{ pinging=false; clearTimeout(drawT); redraw(); }
 }
 
 // ---------- подписка (модалка вместо prompt) ----------
