@@ -149,3 +149,8 @@ test('native validation and API guards remain in place',()=>{
  assert.match(sub,/convert\(body\)[\s\S]*temp.writeText\(body\)/);assert.match(sub,/validated\(fetch\(u,/);assert.match(plugin,/fun saveSubCache/);
  assert.match(script,/touchcancel', cancelGesture/);assert.match(script,/if\(onboardingOpen\(\)\)\{ document.activeElement/);assert.match(script,/allowCache:false/);
 });
+test('long press on labels does not raise the system selection menu',()=>{
+ const rule=html.match(/body\{-webkit-user-select:[^}]+\}/)[0];
+ assert.match(rule,/[^-]user-select:none/);assert.match(rule,/-webkit-touch-callout:none/);
+ assert.match(html,/input,textarea,select,\[contenteditable\]\{-webkit-user-select:text;user-select:text\}/);
+});

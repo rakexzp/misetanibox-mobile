@@ -27,6 +27,10 @@
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;overflow:hidden;overscroll-behavior:none}
 body{background:var(--bg);color:var(--fg);font-family:-apple-system,Roboto,'Segoe UI',system-ui,sans-serif;overflow:hidden}
+/* долгое нажатие по надписи иначе зовёт системное выделение: поверх листа
+   встаёт меню «Копировать», а шторка на миг теряет свой фон */
+body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+input,textarea,select,[contenteditable]{-webkit-user-select:text;user-select:text}
 .app{display:flex;flex-direction:column;height:100%}
 .mono{font-family:'JetBrains Mono',monospace}
 .head{display:flex;align-items:center;justify-content:space-between;padding:10px 24px 0;flex:none}
