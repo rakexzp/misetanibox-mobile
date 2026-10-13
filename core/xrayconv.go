@@ -4,6 +4,7 @@ import (
 	"gopkg.in/yaml.v3"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -357,10 +358,17 @@ func containsString(list []string, want string) bool {
 // mihomoSheet — {main, auto, members[]} главного селектора из YAML подписки.
 func mihomoSheet(text string) string {
 	var root struct {
+		Proxies []struct {
+			Name string `yaml:"name"`
+		} `yaml:"proxies"`
 		Groups []struct {
-			Name    string   `yaml:"name"`
-			Type    string   `yaml:"type"`
-			Proxies []string `yaml:"proxies"`
+			Name       string   `yaml:"name"`
+			Type       string   `yaml:"type"`
+			Proxies    []string `yaml:"proxies"`
+			Use        []string `yaml:"use"`
+			IncludeAll bool     `yaml:"include-all-proxies"`
+			Filter     string   `yaml:"filter"`
+			Exclude    string   `yaml:"exclude-filter"`
 		} `yaml:"proxy-groups"`
 		Rules []string `yaml:"rules"`
 	}
@@ -393,9 +401,24 @@ func mihomoSheet(text string) string {
 		Members []string            `json:"members"`
 		Groups  map[string][]string `json:"groups"`
 	}{Main: main, Groups: map[string][]string{}}
+	all := make([]string, 0, len(root.Proxies))
+	for _, p := range root.Proxies {
+		if p.Name != "" {
+			all = append(all, p.Name)
+		}
+	}
 	for _, gr := range root.Groups {
-		if gr.Name != main && len(gr.Proxies) > 0 {
-			out.Groups[gr.Name] = gr.Proxies
+		if gr.Name == main {
+			continue
+		}
+		members := gr.Proxies
+		// Группа-страна панели не перечисляет узлы, а собирает их фильтром
+		// по именам всех прокси (include-all-proxies / use: провайдер).
+		if len(members) == 0 && (gr.Filter != "" || gr.IncludeAll || len(gr.Use) > 0) {
+			members = matchNames(all, gr.Filter, gr.Exclude)
+		}
+		if len(members) > 0 {
+			out.Groups[gr.Name] = members
 		}
 	}
 	for _, gr := range root.Groups {
@@ -418,6 +441,29 @@ func mihomoSheet(text string) string {
 	}
 	b, _ := json.Marshal(out)
 	return string(b)
+}
+
+// matchNames — имена, подходящие под filter и не отсечённые exclude-filter.
+// Негодное выражение трактуется как «не ограничивает», так же как у ядра.
+func matchNames(all []string, filter, exclude string) []string {
+	var inc, exc *regexp.Regexp
+	if filter != "" {
+		inc, _ = regexp.Compile(filter)
+	}
+	if exclude != "" {
+		exc, _ = regexp.Compile(exclude)
+	}
+	out := []string{}
+	for _, n := range all {
+		if inc != nil && !inc.MatchString(n) {
+			continue
+		}
+		if exc != nil && exc.MatchString(n) {
+			continue
+		}
+		out = append(out, n)
+	}
+	return out
 }
 
 // mihomoNodes — {имя: "server:port"} по proxies подписки.
