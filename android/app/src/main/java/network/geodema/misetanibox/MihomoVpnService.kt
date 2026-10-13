@@ -22,6 +22,9 @@ class MihomoVpnService : VpnService() {
     // Запуск/остановка ядра блокирующие (парсинг конфига + загрузка подписки + shutdown),
     // на главном потоке они вешают интерфейс — тогда кнопка «отключить» не реагирует.
     private val worker = java.util.concurrent.Executors.newSingleThreadExecutor()
+    // Отложенная диагностика ждёт несколько секунд. На общем worker это ожидание задерживало
+    // следующую команду («отключить», reconnect) — поэтому отдельный планировщик.
+    private val diagScheduler = java.util.concurrent.Executors.newSingleThreadScheduledExecutor()
     private var netCallback: android.net.ConnectivityManager.NetworkCallback? = null
     @Volatile private var running = false
 
@@ -177,12 +180,11 @@ class MihomoVpnService : VpnService() {
             // Через несколько секунд снимаем отчёт ядра: поднялся ли TUN и загрузилась ли
             // подписка. hub.ApplyConfig ошибок не возвращает, без этого «нет трафика»
             // выглядит как «всё в порядке».
-            worker.execute {
+            diagScheduler.schedule({
                 try {
-                    Thread.sleep(6000)
                     if (running) broadcast("diag", Mobilecore.diagnose())
                 } catch (_: Exception) {}
-            }
+            }, 6, java.util.concurrent.TimeUnit.SECONDS)
         } catch (e: Exception) {
             broadcast("error", e.message ?: "неизвестная ошибка запуска")
             stopTunnel()
@@ -310,6 +312,7 @@ class MihomoVpnService : VpnService() {
     override fun onDestroy() {
         stopTunnel()
         worker.shutdown()
+        diagScheduler.shutdownNow()
         super.onDestroy()
     }
 

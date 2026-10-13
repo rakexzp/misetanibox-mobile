@@ -957,7 +957,6 @@ function dbg(msg){
 function copyDbg(){ try{ navigator.clipboard.writeText(dbgLines.join('\n')); toast('Лог скопирован'); }catch(e){} }
 window.addEventListener('error',e=>dbg('JS ERR: '+(e.message||e)));
 const API_BASE = 'http://127.0.0.1:9090';
-const GROUP = 'PROXY';
 function safeJson(s){ try{ return JSON.parse(s); }catch{ return null; } }
 // запрос к API ядра: через нативный плагин (без CORS/mixed-content), с фолбэком на fetch в вебе
 async function core(method, path, body){
@@ -1435,17 +1434,22 @@ async function waitForServers(){
   for(let i=0;i<20;i++){
     if(!connected) return;
     const r=await core('GET','/proxies');
-    if(r.ok && r.data){
-      const g=r.data.proxies && r.data.proxies[GROUP];
-      if(g && g.all && g.all.length){
+    if(r.ok && r.data && r.data.proxies){
+      const P=r.data.proxies;
+      // имя главного селектора берём из конфига подписки, а не из жёсткой константы:
+      // в большинстве подписок группы называются иначе, и ожидание уходило в полный таймаут
+      if(!_mainSel) await loadMainSel();
+      const name=pickMainGroup(P, orderedGroups(P));
+      const g=name?P[name]:null;
+      if(g && Array.isArray(g.all) && g.all.length){
         const pref=getPreferred();
-        if(pref && g.all.includes(pref) && pref!==g.now){ await core('PUT','/proxies/'+encodeURIComponent(GROUP),{name:pref}); }
+        if(pref && g.all.includes(pref) && pref!==g.now){ await core('PUT','/proxies/'+encodeURIComponent(name),{name:pref}); }
         loadProxies(); return;
       }
       if(i===3){ core('PUT','/providers/proxies/main'); } // подтолкнуть обновление провайдера
     }
     loadProxies();
-    await sleep(1500);
+    await sleep(i<4?400:1500); // первые секунды опрашиваем чаще — список появляется заметно раньше
   }
 }
 
