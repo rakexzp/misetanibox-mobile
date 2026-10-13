@@ -509,7 +509,6 @@ html:not(.ios) .ios-only{display:none!important}
     <div class="sec-sub" id="subs-count" style="padding-left:24px">НЕТ ПОДПИСОК</div>
     <div id="subs-list"></div>
     <div class="row" style="color:var(--dim)" onclick="addSubscription()"><div class="grow"><div class="t">+ Добавить подписку</div><div class="s">ТАП ПО ПОДПИСКЕ — СДЕЛАТЬ АКТИВНОЙ</div></div></div>
-    <div class="list-note">Панель отдаёт формат конфига по User-Agent — он свой у каждой подписки, меняется тапом по метке в строке. Клиент понимает все три: конфиг mihomo (YAML), конфиг Xray (JSON) и список ссылок — конвертация в формат ядра происходит на устройстве.</div>
   </div>
 
   <!-- ПРАВИЛА -->
@@ -523,8 +522,6 @@ html:not(.ios) .ios-only{display:none!important}
     </div>
     <div class="row android-only" onclick="appsBack='rules';closePanel('rules',false);go('apps')"><div class="grow"><div class="t">Роутинг приложений</div><div class="s" id="split-sub2">РАЗДЕЛЬНЫЙ ТУННЕЛЬ</div></div><span class="chev">›</span></div>
     <div class="row" id="expert-row" onclick="openGroups()" style="display:none"><div class="grow"><div class="t">Селекторы групп</div><div class="s">РЕЖИМ ЭКСПЕРТА · ГРУППЫ ПОДПИСКИ</div></div><span class="chev">›</span></div>
-
-    <div class="list-note">Маршрутизация приходит из подписки: российские сайты, реклама и локальная сеть уже настроены на стороне панели.</div>
   </div>
 
 
@@ -535,7 +532,6 @@ html:not(.ios) .ios-only{display:none!important}
     <div class="sec-sub">ТРАФИК ЧЕРЕЗ ДВА СЕРВЕРА ПОДРЯД</div>
     <div id="chain-list"></div>
     <div class="row" style="color:var(--dim)" onclick="openChainModal()"><div class="grow"><div class="t">+ Создать цепочку</div><div class="s">ВЫБЕРИ ВХОДНОЙ СЕРВЕР</div></div></div>
-    <div class="list-note">Цепочка появится в списке серверов как «🔗 имя» — выбери её, а внутри укажи выходной сервер. Применяется при следующем подключении.</div>
   </div>
 
   <!-- НАСТРОЙКИ -->
@@ -551,8 +547,6 @@ html:not(.ios) .ios-only{display:none!important}
     <div class="row android-only" onclick="appsBack='settings';go('apps')"><div class="grow"><div class="t">Роутинг приложений</div><div class="s" id="split-sub">ПО ПРИЛОЖЕНИЯМ · ВЫКЛ</div></div><span class="chev">›</span></div>
     <div class="row" onclick="go('chains')"><div class="grow"><div class="t">Цепочки</div><div class="s" id="chains-sub">НЕТ ЦЕПОЧЕК</div></div><span class="chev">›</span></div>
     <div class="row"><div class="grow"><div class="t">Автозапуск</div><div class="s">ПОДНЯТЬ ТУННЕЛЬ ПРИ ВКЛЮЧЕНИИ УСТРОЙСТВА</div></div><button class="toggle" id="tgl-autostart" onclick="toggleAutostart(this)"></button></div>
-    <div class="list-note android-only">Плитка в шторке и виджет на рабочем столе включают VPN одним тапом — добавь их через системное меню.</div>
-    <div class="list-note ios-only">Включить VPN можно из Настроек iOS → VPN или командой Siri; автозапуск поднимает туннель при любом подключении к сети.</div>
     <div class="grp-label">Интерфейс</div>
     <div class="row"><div class="grow"><div class="t">Селекторы групп</div><div class="s">РЕЖИМ ЭКСПЕРТА · ГРУППЫ ПОДПИСКИ В «ПРАВИЛАХ»</div></div><button class="toggle" id="tgl-expert" onclick="toggleExpert(this)"></button></div>
     <div class="row" onclick="pickWallpaper()"><div class="grow"><div class="t">Обои главной</div><div class="s">СВОЯ КАРТИНКА НА ОБЛОЖКЕ</div></div><span class="chev">›</span></div>
