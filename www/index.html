@@ -435,7 +435,9 @@ html:not(.ios) .ios-only{display:none!important}
 /* Собственный отклик вместо синей вспышки WebView. */
 *{-webkit-tap-highlight-color:transparent}
 :where(button,a,[role="button"],[onclick]):where(:not(:disabled)){transition:background-color .14s ease,opacity .14s ease}
-:where(button,a,[role="button"],[onclick]):not(:disabled):active{opacity:.72}
+/* подложки листов закрываются по тапу мимо, но нажатой кнопкой не являются:
+   иначе удержание гасит прозрачностью весь лист вместе с содержимым */
+:where(button,a,[role="button"],[onclick]):not(:disabled):not(.cover-sheet-overlay,.sub-modal):active{opacity:.72}
 .view:not(#view-home) .row:not(:disabled):active,.sheet-item:not(:disabled):active{background:rgba(255,255,255,.12)}
 .cover-icon:not(:disabled):active,.sub-refresh:not(:disabled):active,.icon-btn:not(:disabled):active{background:rgba(255,255,255,.12);border-radius:50%}
 :where(button,a,[role="button"],[tabindex]):focus-visible{outline:2px solid var(--fg);outline-offset:3px}

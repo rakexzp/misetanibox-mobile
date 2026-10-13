@@ -154,3 +154,8 @@ test('long press on labels does not raise the system selection menu',()=>{
  assert.match(rule,/[^-]user-select:none/);assert.match(rule,/-webkit-touch-callout:none/);
  assert.match(html,/input,textarea,select,\[contenteditable\]\{-webkit-user-select:text;user-select:text\}/);
 });
+test('press feedback skips sheet and modal backdrops',()=>{
+ const rule=html.match(/^:where\(button,a,\[role="button"\],\[onclick\]\)[^\n]*:active\{opacity:\.72\}/m)[0];
+ assert.match(rule,/:not\(\.cover-sheet-overlay,\.sub-modal\)/);
+ for(const sel of ['cover-sheet-overlay','sub-modal'])assert.match(html,new RegExp(`class="${sel}[^"]*"[^>]*onclick=`));
+});
