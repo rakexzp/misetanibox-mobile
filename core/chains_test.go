@@ -74,3 +74,32 @@ func TestPrepareConfigNoop(t *testing.T) {
 		t.Fatal("без цепочек конфиг должен остаться как есть")
 	}
 }
+
+// в подписках бывают имена с пробелами по краям, а UI присылает их обрезанными
+func TestInjectChainsPaddedNames(t *testing.T) {
+	const cfgText = `
+proxies:
+  - {name: " NL ", type: vless, server: 1.1.1.1, port: 443, uuid: x}
+  - {name: "DE", type: vless, server: 2.2.2.2, port: 443, uuid: y}
+proxy-groups:
+  - {name: MAIN, type: select, proxies: [" NL ", DE]}
+rules:
+  - MATCH,MAIN
+`
+	SetChains(`[{"name":"NL-DE","nodes":["NL","DE"]},{"name":"DE-NL","nodes":["DE"," NL "]}]`)
+	defer SetChains("")
+	var cfg testCfg
+	if err := yaml.Unmarshal([]byte(prepareConfig(cfgText)), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	byName := map[string]map[string]interface{}{}
+	for _, p := range cfg.Proxies {
+		byName[p["name"].(string)] = p
+	}
+	if e := byName["🔗 NL-DE"]; e == nil || e["dialer-proxy"] != " NL " || e["server"] != "2.2.2.2" {
+		t.Fatalf("цепочка с обрезанным именем входа не собралась: %v", e)
+	}
+	if e := byName["🔗 DE-NL"]; e == nil || e["dialer-proxy"] != "DE" || e["server"] != "1.1.1.1" {
+		t.Fatalf("цепочка с точным именем выхода не собралась: %v", e)
+	}
+}

@@ -183,6 +183,35 @@ func injectChains(root map[string]interface{}, chains []ProxyChain) {
 			}
 		}
 	}
+	// имена из UI бывают обрезаны (превью подписки делает trim), а в подписке встречаются
+	// узлы с пробелами по краям (« 🇩🇪 ⚡ Германия») — сначала точное совпадение, потом без пробелов
+	trimmed := map[string]string{}
+	addTrimmed := func(n string) {
+		if t := strings.TrimSpace(n); t != n {
+			if _, ok := trimmed[t]; !ok {
+				trimmed[t] = n
+			}
+		}
+	}
+	for n := range byName {
+		addTrimmed(n)
+	}
+	for n := range groupNames {
+		addTrimmed(n)
+	}
+	resolve := func(n string) string {
+		if byName[n] != nil || groupNames[n] {
+			return n
+		}
+		t := strings.TrimSpace(n)
+		if t == "" || byName[t] != nil || groupNames[t] {
+			return t
+		}
+		if o, ok := trimmed[t]; ok {
+			return o
+		}
+		return t
+	}
 
 	var added []interface{}
 	var exits []string
@@ -193,7 +222,7 @@ func injectChains(root map[string]interface{}, chains []ProxyChain) {
 		}
 		nodes := make([]string, 0, len(ch.Nodes))
 		for _, n := range ch.Nodes {
-			if n = strings.TrimSpace(n); n != "" {
+			if n = resolve(n); n != "" {
 				nodes = append(nodes, n)
 			}
 		}
