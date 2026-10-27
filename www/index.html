@@ -1315,7 +1315,7 @@ async function loadMainSel(){
   const r=await core('GET','/rules');
   if(r.ok&&r.data&&Array.isArray(r.data.rules)){ const m=r.data.rules.filter(x=>String(x.type||'').toLowerCase()==='match').pop(); if(m&&m.proxy) _mainSel=m.proxy; }
   const pr=await core('GET','/providers/proxies');
-  if(pr.ok&&pr.data&&pr.data.providers){ const set=new Set(); for(const [pn,pv] of Object.entries(pr.data.providers)){ if(pn==='default') continue; for(const x of (pv.proxies||[])) if(x&&x.name) set.add(x.name); } _providerNodes=set; }
+  if(pr.ok&&pr.data&&pr.data.providers){ const set=new Set(); for(const [pn,pv] of Object.entries(pr.data.providers)){ if(pn==='default'||String(pv.vehicleType||'').toLowerCase()==='compatible') continue; for(const x of (pv.proxies||[])) if(x&&x.name) set.add(x.name); } _providerNodes=set; }
 }
 function pickMainGroup(P, order){
   if(_mainSel && P[_mainSel] && Array.isArray(P[_mainSel].all)) return _mainSel;
@@ -1454,7 +1454,7 @@ async function waitForServers(){
 }
 
 // ---------- лист серверов (как в Lite): Авто → страны главного селектора ----------
-const NO_EXIT=/^(Direct|Reject|RejectDrop|Pass|Compatible|Dns)$/i;
+const NO_EXIT=/^(Direct|Reject|RejectDrop|Pass|PassRule|Compatible|Dns)$/i;
 function sheetMain(){ if(!_proxies) return null; const order=orderedGroups(_proxies); return pickMainGroup(_proxies, order); }
 function openServerSheet(){ const el=document.getElementById('server-sheet'); if(!el) return; if(!el._drag){ el._drag=1; sheetDrag(el); } el.classList.remove('hidden'); renderServerSheet(); if(connected) loadProxies(); else if(!safeJson(localStorage.getItem(ck('mise_lastServers')))) previewServers().then(renderServerSheet); }
 function closeServerSheet(){ const el=document.getElementById('server-sheet'); if(!el||el.classList.contains('hidden')) return; const c=el.querySelector('.cover-sheet'); if(c){ c.style.animation='sheet-out .28s cubic-bezier(.32,.72,0,1) forwards'; setTimeout(()=>{ el.classList.add('hidden'); c.style.animation=''; },270); } else el.classList.add('hidden'); }
